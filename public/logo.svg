@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C4B5FD"/>
+      <stop offset="100%" stop-color="#FDE68A"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <!-- Brain shape -->
+  <path d="M64 30c-8 0-15 4-19 10-2 3-3 7-3 11 0 5 2 9 5 13l3 4c1 2 2 4 2 6v8h24v-8c0-2 1-4 2-6l3-4c3-4 5-8 5-13 0-4-1-8-3-11C79 34 72 30 64 30z" fill="url(#spark)" opacity="0.9"/>
+  <!-- Brain folds -->
+  <path d="M54 50c2-4 6-7 10-7s8 3 10 7" stroke="#7C3AED" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M50 60c3-3 8-5 14-5s11 2 14 5" stroke="#7C3AED" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M56 70c2-2 5-3 8-3s6 1 8 3" stroke="#7C3AED" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <!-- Sparkles -->
+  <circle cx="36" cy="40" r="3" fill="#FDE68A"/>
+  <circle cx="92" cy="40" r="3" fill="#C4B5FD"/>
+  <circle cx="42" cy="28" r="2" fill="#FDE68A" opacity="0.7"/>
+  <circle cx="86" cy="28" r="2" fill="#C4B5FD" opacity="0.7"/>
+  <!-- Bottom line -->
+  <rect x="48" y="86" width="32" height="4" rx="2" fill="url(#spark)" opacity="0.8"/>
+  <rect x="54" y="94" width="20" height="3" rx="1.5" fill="url(#spark)" opacity="0.5"/>
+</svg>
