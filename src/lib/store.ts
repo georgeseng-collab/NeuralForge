@@ -72,12 +72,13 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   imageSettings: {
     prompt: '',
     negativePrompt: '',
-    width: 512,
-    height: 512,
+    width: 1024,
+    height: 1024,
     steps: 20,
     cfgScale: 7,
     style: 'Photorealistic',
     seed: null,
+    modelId: 'flux',
   },
   updateImageSettings: (settings) =>
     set((state) => ({ imageSettings: { ...state.imageSettings, ...settings } })),
@@ -100,10 +101,11 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
     prompt: '',
     duration: 2,
     fps: 12,
-    width: 512,
-    height: 512,
+    width: 1344,
+    height: 768,
     imageToVideo: false,
     sourceImage: null,
+    modelId: 'flux',
   },
   updateVideoSettings: (settings) =>
     set((state) => ({ videoSettings: { ...state.videoSettings, ...settings } })),
@@ -171,11 +173,11 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
 
   // App Settings
   appSettings: {
-    backendUrl: 'localhost:5000',
+    backendUrl: 'cloud',
     theme: 'dark',
     defaultSteps: 20,
     defaultCfgScale: 7,
-    defaultResolution: '512x512',
+    defaultResolution: '1024x1024',
     storagePath: './neuralforge-data',
   },
   updateAppSettings: (settings) =>
@@ -184,11 +186,11 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   // Connection
   connectionStatus: {
     online: true,
-    backendConnected: false,
-    backendVersion: '',
-    gpuAvailable: false,
-    gpuName: '',
-    modelsLoaded: [],
+    backendConnected: true,
+    backendVersion: '2.0.0',
+    gpuAvailable: true,
+    gpuName: 'Cloud AI Engine',
+    modelsLoaded: ['flux', 'flux-realism', 'flux-anime', 'flux-3d', 'turbo', 'any-dark'],
   },
   updateConnectionStatus: (status) =>
     set((state) => ({

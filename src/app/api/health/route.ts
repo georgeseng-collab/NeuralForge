@@ -3,15 +3,20 @@ import { checkHealth } from '@/lib/ai';
 
 export async function GET() {
   const health = await checkHealth();
-  const isDemo = health.mode === 'cloud-demo';
+  const isCloud = health.mode === 'cloud';
 
   return NextResponse.json({
     status: 'online',
     backendConnected: true,
-    version: '1.2.0',
-    gpu_available: !isDemo,
-    gpu_name: isDemo ? 'Cloud Demo Mode' : 'Cloud AI Engine',
-    models_loaded: isDemo ? [] : ['sd-turbo', 'sdxl-base'],
+    version: '2.0.0',
+    gpu_available: !isCloud,
+    gpu_name: isCloud ? 'Cloud AI (Free)' : 'Local + Cloud AI',
+    models_loaded: isCloud
+      ? ['flux', 'flux-realism', 'flux-anime', 'flux-3d', 'flux-cablyai', 'flux-pro', 'turbo', 'any-dark']
+      : ['flux', 'flux-realism', 'flux-anime', 'flux-3d', 'flux-cablyai', 'flux-pro', 'turbo', 'any-dark', 'sdxl', 'zai-engine'],
     mode: health.mode,
+    providers: health.providers,
+    free_tier: true,
+    no_api_key_required: true,
   });
 }

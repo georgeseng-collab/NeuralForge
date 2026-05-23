@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateImage } from '@/lib/ai';
+import { generateVideoKeyframe } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
       duration = 2,
       fps = 12,
       style = 'Photorealistic',
+      modelId = 'flux',
     } = body;
 
     if (!prompt || !prompt.trim()) {
@@ -19,31 +20,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate a keyframe image for the video
-    const styleMap: Record<string, string> = {
-      'Photorealistic': 'photorealistic, cinematic, 8k, dramatic lighting',
-      'Anime': 'anime style, cel shaded, vibrant colors, manga art',
-      'Digital Art': 'digital art, concept art, detailed illustration',
-      'Oil Painting': 'oil painting, classical art, rich textures',
-      'Watercolor': 'watercolor painting, soft colors, flowing',
-      'Sketch': 'pencil sketch, hand drawn, detailed line art',
-      'Cyberpunk': 'cyberpunk, neon lights, futuristic, dark atmosphere',
-      'Fantasy': 'fantasy art, magical, epic, ethereal lighting',
-    };
-
-    const stylePrefix = styleMap[style] || styleMap['Photorealistic'];
-    const enhancedPrompt = `${prompt}, ${stylePrefix}, cinematic frame, movie still`;
-
-    const { imageUrl, isReal } = await generateImage(enhancedPrompt, '1344x768', style, 1344, 768);
+    const { imageUrl, isReal, provider, modelUsed } = await generateVideoKeyframe(
+      prompt,
+      style,
+      1344,
+      768,
+      modelId,
+    );
 
     return NextResponse.json({
       video_url: imageUrl,
       thumbnail_url: imageUrl,
       is_nsfw: false,
-      prompt: enhancedPrompt,
+      prompt,
       duration,
       fps,
       is_real_generation: isReal,
       mode: isReal ? 'ai-generated' : 'demo-preview',
+      provider,
+      model_used: modelUsed,
+      note: 'Video keyframe generated. Full video generation requires local backend with GPU.',
     });
   } catch (error: any) {
     console.error('Video generation error:', error);

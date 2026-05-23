@@ -11,6 +11,7 @@ export interface ImageSettings {
   cfgScale: number;
   style: string;
   seed: number | null;
+  modelId: string;
 }
 
 export interface VideoSettings {
@@ -21,6 +22,7 @@ export interface VideoSettings {
   height: number;
   imageToVideo: boolean;
   sourceImage: string | null;
+  modelId: string;
 }
 
 export interface GalleryItem {
@@ -33,6 +35,8 @@ export interface GalleryItem {
   thumbnailUrl: string;
   timestamp: number;
   isNsfw: boolean;
+  modelUsed?: string;
+  provider?: string;
 }
 
 export interface AIModel {
@@ -44,8 +48,11 @@ export interface AIModel {
   description: string;
   downloaded: boolean;
   active: boolean;
-  progress: number; // download progress 0-100
+  progress: number;
   huggingFaceId: string;
+  provider?: string;
+  free?: boolean;
+  noApiKey?: boolean;
 }
 
 export interface SafetySettings {
@@ -79,6 +86,7 @@ export interface ConnectionStatus {
   gpuAvailable: boolean;
   gpuName: string;
   modelsLoaded: string[];
+  providers?: string[];
 }
 
 export interface GenerationProgress {
@@ -100,6 +108,10 @@ export const STYLE_OPTIONS = [
   'Sketch',
   'Cyberpunk',
   'Fantasy',
+  '3D Render',
+  'Pixel Art',
+  'Minimalist',
+  'Surreal',
 ] as const;
 
 export const RESOLUTION_OPTIONS = [
@@ -113,54 +125,173 @@ export const RESOLUTION_OPTIONS = [
 export const DURATION_OPTIONS = [2, 5, 10, 15, 30] as const;
 export const FPS_OPTIONS = [8, 12, 24, 30] as const;
 
+export const IMAGE_MODEL_OPTIONS = [
+  { id: 'flux', name: 'Flux', description: 'High-quality general purpose', speed: 'Fast', badge: 'Popular' },
+  { id: 'flux-realism', name: 'Flux Realism', description: 'Photorealistic with stunning detail', speed: 'Medium', badge: 'HD' },
+  { id: 'flux-anime', name: 'Flux Anime', description: 'Anime & manga style', speed: 'Fast', badge: 'Anime' },
+  { id: 'flux-3d', name: 'Flux 3D', description: '3D render style with realistic lighting', speed: 'Medium', badge: '3D' },
+  { id: 'flux-cablyai', name: 'Flux CablyAI', description: 'Enhanced creative & artistic', speed: 'Fast', badge: 'Creative' },
+  { id: 'flux-pro', name: 'Flux Pro', description: 'Premium quality, best detail', speed: 'Slow', badge: 'Pro' },
+  { id: 'turbo', name: 'Turbo', description: 'Ultra-fast generation', speed: 'Very Fast', badge: 'Speed' },
+  { id: 'any-dark', name: 'AnyDark', description: 'Dark & moody aesthetic', speed: 'Fast', badge: 'Dark' },
+  { id: 'stable-diffusion-xl', name: 'Stable Diffusion XL', description: 'Open-source, diverse styles', speed: 'Medium', badge: 'Open Source' },
+  { id: 'playground-v2', name: 'Playground v2.5', description: 'Vibrant creative outputs', speed: 'Medium', badge: 'Creative' },
+] as const;
+
+export const VIDEO_MODEL_OPTIONS = [
+  { id: 'flux-video', name: 'Flux Video', description: 'AI video from text prompts', speed: 'Slow', badge: 'Video' },
+] as const;
+
 export const DEFAULT_MODELS: AIModel[] = [
   {
-    id: 'sd-turbo',
-    name: 'SD Turbo',
+    id: 'flux',
+    name: 'Flux',
     type: 'image',
-    size: '4.2 GB',
-    sizeBytes: 4_200_000_000,
-    description: 'Fast image generation with decent quality. Great for rapid prototyping.',
-    downloaded: false,
-    active: false,
-    progress: 0,
-    huggingFaceId: 'stabilityai/sd-turbo',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'High-quality general purpose model with excellent photorealism and artistic styles.',
+    downloaded: true,
+    active: true,
+    progress: 100,
+    huggingFaceId: 'black-forest-labs/flux-schnell',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
   },
   {
-    id: 'sdxl-base',
+    id: 'flux-realism',
+    name: 'Flux Realism',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Photorealistic image generation with stunning detail and lifelike textures.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'black-forest-labs/flux-realism',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'flux-anime',
+    name: 'Flux Anime',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Anime and manga style generation with vibrant colors and cel-shading.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'black-forest-labs/flux-anime',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'flux-3d',
+    name: 'Flux 3D',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: '3D render style generation with realistic lighting and materials.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'flux-3d',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'flux-cablyai',
+    name: 'Flux CablyAI',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Enhanced creative model for artistic and stylized outputs.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'cablyai/flux',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'flux-pro',
+    name: 'Flux Pro',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Premium quality generation with the best detail and composition.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'black-forest-labs/flux-pro',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'turbo',
+    name: 'Turbo',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Ultra-fast generation with decent quality. Perfect for rapid prototyping.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'stabilityai/sd-turbo',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'any-dark',
+    name: 'AnyDark',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Dark and moody aesthetic generation. Great for gothic, noir, and shadowy scenes.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'any-dark',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'stable-diffusion-xl',
     name: 'Stable Diffusion XL',
     type: 'image',
-    size: '6.5 GB',
-    sizeBytes: 6_500_000_000,
-    description: 'High quality image generation. Slower but produces stunning results.',
-    downloaded: false,
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Open-source high quality model. Great for diverse styles and subjects.',
+    downloaded: true,
     active: false,
-    progress: 0,
+    progress: 100,
     huggingFaceId: 'stabilityai/stable-diffusion-xl-base-1.0',
+    provider: 'huggingface',
+    free: true,
+    noApiKey: true,
   },
   {
-    id: 'animatediff',
-    name: 'AnimateDiff',
-    type: 'video',
-    size: '3.8 GB',
-    sizeBytes: 3_800_000_000,
-    description: 'Short video clip generation from text prompts. Creates 2-5 second clips.',
-    downloaded: false,
+    id: 'playground-v2',
+    name: 'Playground v2.5',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Playground AI model with vibrant, creative outputs and strong composition.',
+    downloaded: true,
     active: false,
-    progress: 0,
-    huggingFaceId: 'guoyww/AnimateDiff',
-  },
-  {
-    id: 'svd-xt',
-    name: 'SVD XT',
-    type: 'video',
-    size: '4.1 GB',
-    sizeBytes: 4_100_000_000,
-    description: 'Stable Video Diffusion — image-to-video generation with smooth motion.',
-    downloaded: false,
-    active: false,
-    progress: 0,
-    huggingFaceId: 'stabilityai/stable-video-diffusion-img2vid-xt',
+    progress: 100,
+    huggingFaceId: 'playgroundai/playground-v2.5-1024px-aesthetic',
+    provider: 'huggingface',
+    free: true,
+    noApiKey: true,
   },
 ];
 
