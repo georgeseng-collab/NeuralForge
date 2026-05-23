@@ -4,7 +4,7 @@ export async function GET() {
   return NextResponse.json({
     status: 'online',
     backendConnected: true,
-    version: '1.0.0',
+    version: '1.1.2',
     gpu_available: true,
     gpu_name: 'Cloud AI Engine',
     models_loaded: ['sd-turbo', 'sdxl-base'],

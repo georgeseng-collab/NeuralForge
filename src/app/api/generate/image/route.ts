@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createZAI } from '@/lib/ai';
+import { generateImage } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,14 +42,9 @@ export async function POST(request: NextRequest) {
     else if (width > height) size = '1344x768';
     else if (width >= 1024) size = '1024x1024';
 
-    const zai = createZAI();
+    const result = await generateImage(enhancedPrompt, size);
 
-    const response = await zai.images.generations.create({
-      prompt: enhancedPrompt,
-      size,
-    });
-
-    const imageBase64 = response.data[0]?.base64;
+    const imageBase64 = result.data[0]?.base64;
 
     if (!imageBase64) {
       throw new Error('No image data returned from AI engine');

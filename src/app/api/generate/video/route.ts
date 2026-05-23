@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createZAI } from '@/lib/ai';
+import { generateImage } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate a keyframe image for the video using AI image generation
+    // Generate a keyframe image for the video
     const styleMap: Record<string, string> = {
       'Photorealistic': 'photorealistic, cinematic, 8k, dramatic lighting',
       'Anime': 'anime style, cel shaded, vibrant colors, manga art',
@@ -33,15 +33,9 @@ export async function POST(request: NextRequest) {
     const stylePrefix = styleMap[style] || styleMap['Photorealistic'];
     const enhancedPrompt = `${prompt}, ${stylePrefix}, cinematic frame, movie still`;
 
-    const zai = createZAI();
+    const result = await generateImage(enhancedPrompt, '1344x768');
 
-    // Generate the keyframe image
-    const response = await zai.images.generations.create({
-      prompt: enhancedPrompt,
-      size: '1344x768',
-    });
-
-    const imageBase64 = response.data[0]?.base64;
+    const imageBase64 = result.data[0]?.base64;
 
     if (!imageBase64) {
       throw new Error('No image data returned from AI engine');
@@ -49,8 +43,6 @@ export async function POST(request: NextRequest) {
 
     const imageUrl = `data:image/png;base64,${imageBase64}`;
 
-    // Return the generated keyframe as the video representation
-    // In a full offline setup, this would be animated with frame interpolation
     return NextResponse.json({
       video_url: imageUrl,
       thumbnail_url: imageUrl,
