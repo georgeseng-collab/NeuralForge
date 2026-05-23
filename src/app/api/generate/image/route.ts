@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { createZAI } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     else if (width > height) size = '1344x768';
     else if (width >= 1024) size = '1024x1024';
 
-    const zai = await ZAI.create();
+    const zai = createZAI();
 
     const response = await zai.images.generations.create({
       prompt: enhancedPrompt,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { createZAI } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const stylePrefix = styleMap[style] || styleMap['Photorealistic'];
     const enhancedPrompt = `${prompt}, ${stylePrefix}, cinematic frame, movie still`;
 
-    const zai = await ZAI.create();
+    const zai = createZAI();
 
     // Generate the keyframe image
     const response = await zai.images.generations.create({
