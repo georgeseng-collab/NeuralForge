@@ -17,7 +17,6 @@ export interface FreeAIModel {
 }
 
 export const FREE_AI_MODELS: FreeAIModel[] = [
-  // Pollinations.ai models (completely free, no API key)
   {
     id: 'flux',
     name: 'Flux',
@@ -79,6 +78,18 @@ export const FREE_AI_MODELS: FreeAIModel[] = [
     noApiKey: true,
   },
   {
+    id: 'flux-pro',
+    name: 'Flux Pro',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Premium quality generation with the best detail and composition.',
+    maxResolution: '1024x1024',
+    speed: 'slow',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
     id: 'turbo',
     name: 'Turbo',
     provider: 'pollinations',
@@ -103,19 +114,6 @@ export const FREE_AI_MODELS: FreeAIModel[] = [
     noApiKey: true,
   },
   {
-    id: 'flux-pro',
-    name: 'Flux Pro',
-    provider: 'pollinations',
-    type: 'image',
-    description: 'Premium quality generation with the best detail and composition.',
-    maxResolution: '1024x1024',
-    speed: 'slow',
-    quality: 'ultra',
-    free: true,
-    noApiKey: true,
-  },
-  // Hugging Face free models
-  {
     id: 'stable-diffusion-xl',
     name: 'Stable Diffusion XL',
     provider: 'huggingface',
@@ -139,7 +137,6 @@ export const FREE_AI_MODELS: FreeAIModel[] = [
     free: true,
     noApiKey: true,
   },
-  // ZAI local model (for local development only)
   {
     id: 'zai-default',
     name: 'ZAI Engine (Local)',
@@ -201,9 +198,27 @@ function buildPollinationsUrl(
   params.set('model', model);
   if (nologo) params.set('nologo', 'true');
   if (seed !== undefined && seed !== null) params.set('seed', String(seed));
-  // Add a cache-buster to avoid getting cached images
+  // Cache-buster
   params.set('t', String(Date.now()));
   return `https://image.pollinations.ai/prompt/${encodedPrompt}?${params.toString()}`;
+}
+
+// ─── Fetch image from URL and convert to base64 ─────────────────────────
+async function fetchImageAsBase64(url: string, timeout = 90000): Promise<string> {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(timeout),
+  });
+  if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+
+  const contentType = response.headers.get('content-type') || 'image/png';
+  const arrayBuffer = await response.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+  const mime = contentType.includes('jpeg') || contentType.includes('jpg') ? 'image/jpeg'
+    : contentType.includes('webp') ? 'image/webp'
+    : 'image/png';
+
+  return `data:${mime};base64,${base64}`;
 }
 
 // ─── Hugging Face Inference API ────────────────────────────────────────────
@@ -242,7 +257,6 @@ async function generateWithHuggingFace(
     throw new Error(`HuggingFace API error (${response.status}): ${errorText}`);
   }
 
-  // HuggingFace returns the image as a binary blob
   const arrayBuffer = await response.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString('base64');
   return `data:image/png;base64,${base64}`;
@@ -281,7 +295,6 @@ async function generateWithZAI(
   const imageBase64 = result.data?.[0]?.base64;
   if (imageBase64) return `data:image/png;base64,${imageBase64}`;
 
-  // If there's a URL, download and convert
   const imageUrl = result.data?.[0]?.url;
   if (imageUrl) {
     const imgResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
@@ -295,25 +308,6 @@ async function generateWithZAI(
   throw new Error('No image data in ZAI response');
 }
 
-// ─── Fetch image from URL and convert to base64 ─────────────────────────
-async function fetchImageAsBase64(url: string, timeout = 120000): Promise<string> {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(timeout),
-  });
-  if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
-
-  const contentType = response.headers.get('content-type') || 'image/png';
-  const arrayBuffer = await response.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString('base64');
-
-  // Determine the MIME type for the data URL
-  const mime = contentType.includes('jpeg') || contentType.includes('jpg') ? 'image/jpeg'
-    : contentType.includes('webp') ? 'image/webp'
-    : 'image/png';
-
-  return `data:${mime};base64,${base64}`;
-}
-
 // ─── Main Generation Function ──────────────────────────────────────────────
 export async function generateImage(
   prompt: string,
@@ -324,59 +318,68 @@ export async function generateImage(
   modelId: string = 'flux',
   seed?: number,
 ): Promise<{ imageUrl: string; isReal: boolean; provider: string; modelUsed: string }> {
-  // Enhance prompt with style
   const stylePrefix = STYLE_MAP[style] || STYLE_MAP['Photorealistic'];
   const enhancedPrompt = `${prompt}, ${stylePrefix}`;
 
-  // Find the model
   const model = FREE_AI_MODELS.find(m => m.id === modelId);
   const provider = model?.provider || 'pollinations';
 
   try {
     switch (provider) {
       case 'pollinations': {
-        // Build the Pollinations URL
         const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, seed || undefined);
 
-        // Fetch the actual image on the server and convert to base64
-        // This ensures the browser can always display the image
+        // Strategy: Try to fetch as base64 (works when server has time)
+        // If it times out, return the direct URL and let the browser load it
         try {
-          const base64Image = await fetchImageAsBase64(pollinationsUrl);
+          const base64Image = await fetchImageAsBase64(pollinationsUrl, 50000);
           return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
         } catch (fetchErr: any) {
-          console.log(`[NeuralForge] Model ${modelId} failed, trying flux fallback:`, fetchErr.message);
-          // Fallback to flux model
-          const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
-          const base64Image = await fetchImageAsBase64(fallbackUrl);
-          return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
+          console.log(`[NeuralForge] Base64 fetch failed for ${modelId}: ${fetchErr.message}. Trying flux fallback...`);
+
+          // Try flux as fallback with shorter timeout
+          try {
+            const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
+            const base64Image = await fetchImageAsBase64(fallbackUrl, 30000);
+            return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
+          } catch {
+            // Last resort: return the direct URL for the browser to load
+            // The browser has more time to load images than the serverless function
+            console.log('[NeuralForge] Returning direct URL for browser-side loading');
+            return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
+          }
         }
       }
 
       case 'huggingface': {
-        const base64Image = await generateWithHuggingFace(enhancedPrompt, modelId, width, height);
-        return { imageUrl: base64Image, isReal: true, provider: 'huggingface', modelUsed: modelId };
+        try {
+          const base64Image = await generateWithHuggingFace(enhancedPrompt, modelId, width, height);
+          return { imageUrl: base64Image, isReal: true, provider: 'huggingface', modelUsed: modelId };
+        } catch {
+          // Fallback to Pollinations
+          const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
+          return { imageUrl: fallbackUrl, isReal: true, provider: 'pollinations', modelUsed: 'flux (hf fallback)' };
+        }
       }
 
       case 'zai': {
-        const base64Image = await generateWithZAI(enhancedPrompt, size);
-        return { imageUrl: base64Image, isReal: true, provider: 'zai', modelUsed: modelId };
+        try {
+          const base64Image = await generateWithZAI(enhancedPrompt, size);
+          return { imageUrl: base64Image, isReal: true, provider: 'zai', modelUsed: modelId };
+        } catch {
+          const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
+          return { imageUrl: fallbackUrl, isReal: true, provider: 'pollinations', modelUsed: 'flux (zai fallback)' };
+        }
       }
 
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
   } catch (error: any) {
-    console.error(`[NeuralForge] ${provider} generation failed:`, error.message);
-    // Fallback to Pollinations flux model with base64
-    try {
-      const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
-      const base64Image = await fetchImageAsBase64(fallbackUrl);
-      return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux (fallback)' };
-    } catch {
-      // Ultimate fallback - generate SVG placeholder
-      const placeholder = generatePlaceholderImage(prompt, style, width, height);
-      return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
-    }
+    console.error(`[NeuralForge] All generation failed:`, error.message);
+    // Ultimate fallback - generate SVG placeholder
+    const placeholder = generatePlaceholderImage(prompt, style, width, height);
+    return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
   }
 }
 
@@ -393,18 +396,16 @@ export async function generateVideoKeyframe(
 
   try {
     const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, undefined);
-    const base64Image = await fetchImageAsBase64(pollinationsUrl);
-    return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
-  } catch (error: any) {
-    console.error(`[NeuralForge] Video keyframe generation failed:`, error.message);
+
     try {
-      const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, undefined);
-      const base64Image = await fetchImageAsBase64(fallbackUrl);
-      return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
+      const base64Image = await fetchImageAsBase64(pollinationsUrl, 50000);
+      return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
     } catch {
-      const placeholder = generatePlaceholderImage(prompt, style, width, height);
-      return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
+      return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
     }
+  } catch (error: any) {
+    const placeholder = generatePlaceholderImage(prompt, style, width, height);
+    return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
   }
 }
 
@@ -412,38 +413,29 @@ export async function generateVideoKeyframe(
 export async function checkHealth(): Promise<{ reachable: boolean; mode: string; providers: string[] }> {
   const providers: string[] = ['pollinations'];
 
-  // Check Pollinations
   try {
     const res = await fetch('https://image.pollinations.ai/prompt/test?width=64&height=64&nologo=true&t=' + Date.now(), {
       method: 'HEAD',
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(5000),
     });
     if (res.ok) providers.push('pollinations (verified)');
-  } catch {
-    // Pollinations might be slow but still works
-  }
+  } catch {}
 
-  // Check HuggingFace
   try {
     const res = await fetch('https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0', {
       method: 'HEAD',
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(3000),
     });
-    if (res.ok || res.status === 503) providers.push('huggingface'); // 503 means model is loading but API is up
-  } catch {
-    // HF not reachable
-  }
+    if (res.ok || res.status === 503) providers.push('huggingface');
+  } catch {}
 
-  // Check ZAI (local only)
   try {
     const res = await fetch(`${ZAI_BASE_URL}/models`, {
       method: 'GET',
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(2000),
     });
     if (res.ok) providers.push('zai');
-  } catch {
-    // ZAI not reachable (expected on Vercel)
-  }
+  } catch {}
 
   return {
     reachable: providers.length > 0,

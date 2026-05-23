@@ -66,6 +66,47 @@ const BADGE_COLORS: Record<string, string> = {
   'Video': 'bg-red-600/30 text-red-300',
 };
 
+// ─── Image Loader Component ─────────────────────────────────────────────────
+function ImageWithLoader({ src }: { src: string }) {
+  const [loading, setLoading] = useState(!src.startsWith('data:'));
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return (
+      <div className="text-center text-zinc-600 p-4">
+        <Image className="w-10 h-10 mx-auto mb-2 opacity-30" />
+        <p className="text-sm">Image failed to load</p>
+        <p className="text-xs mt-1 text-zinc-700">Try generating again or use a different model</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full relative">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800/50 z-10">
+          <div className="text-center text-zinc-500">
+            <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin opacity-40" />
+            <p className="text-xs">Loading image...</p>
+          </div>
+        </div>
+      )}
+      <img
+        src={src}
+        alt="Generated"
+        className="w-full h-full object-contain"
+        loading="eager"
+        crossOrigin="anonymous"
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          setLoading(false);
+          setError(true);
+        }}
+      />
+    </div>
+  );
+}
+
 export default function Home() {
   const {
     activeTab, setActiveTab,
@@ -434,12 +475,7 @@ function ImageGenPanel() {
             <CardContent>
               <div className="aspect-square rounded-xl bg-zinc-800/30 border border-zinc-800 flex items-center justify-center overflow-hidden">
                 {generatedImage ? (
-                  <img
-                    src={generatedImage}
-                    alt="Generated"
-                    className="w-full h-full object-contain"
-                    loading="eager"
-                  />
+                  <ImageWithLoader src={generatedImage} />
                 ) : imageProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
