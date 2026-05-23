@@ -560,9 +560,76 @@ function ImageGenPanel() {
   );
 }
 
+// ─── Video Player Component ──────────────────────────────────────────────────
+function VideoPlayer({ gifUrl, frames, isAnimated }: { gifUrl: string | null; frames: string[]; isAnimated: boolean }) {
+  const [currentFrame, setCurrentFrame] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+
+  // Auto-advance frames for animation
+  useEffect(() => {
+    if (!isPlaying || isAnimated || frames.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentFrame((prev) => (prev + 1) % frames.length);
+    }, 800);
+    return () => clearInterval(interval);
+  }, [isPlaying, isAnimated, frames.length]);
+
+  // If we have an animated GIF, show it directly
+  if (isAnimated && gifUrl) {
+    return (
+      <img
+        src={gifUrl}
+        alt="Generated Video"
+        className="w-full h-full object-contain"
+      />
+    );
+  }
+
+  // Otherwise, cycle through frames
+  if (frames.length > 1) {
+    return (
+      <div className="w-full h-full relative">
+        <img
+          src={frames[currentFrame]}
+          alt={`Frame ${currentFrame + 1}`}
+          className="w-full h-full object-contain"
+        />
+        {/* Frame indicator */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur rounded-full px-3 py-1.5">
+          <button
+            onClick={() => setIsPlaying(!isPlaying)}
+            className="text-white hover:text-amber-300 transition-colors"
+          >
+            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </button>
+          <div className="flex gap-1">
+            {frames.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => { setCurrentFrame(i); setIsPlaying(false); }}
+                className={`w-2 h-2 rounded-full transition-all ${i === currentFrame ? 'bg-amber-400 scale-125' : 'bg-white/40 hover:bg-white/60'}`}
+              />
+            ))}
+          </div>
+          <span className="text-[10px] text-white/60">{currentFrame + 1}/{frames.length}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Single frame
+  if (frames.length === 1) {
+    return <ImageWithLoader src={frames[0]} />;
+  }
+
+  return null;
+}
+
 // ─── Video Generation Panel ──────────────────────────────────────────────────
 function VideoGenPanel() {
   const { videoSettings, updateVideoSettings, videoProgress, setVideoProgress, generatedVideo, setGeneratedVideo, addGalleryItem, safetySettings, addSafetyLog } = useNeuralForgeStore();
+  const [videoFrames, setVideoFrames] = useState<string[]>([]);
+  const [isAnimated, setIsAnimated] = useState(false);
 
   const handleGenerate = useCallback(async () => {
     if (!videoSettings.prompt.trim()) {
@@ -586,7 +653,10 @@ function VideoGenPanel() {
     }
 
     const selectedModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
-    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: videoSettings.duration * videoSettings.fps, message: `Generating with ${selectedModel?.name || 'AI'}...` });
+    const numFrames = Math.min(Math.max(Math.ceil(videoSettings.duration / 2), 2), 6);
+    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: numFrames, message: `Generating ${numFrames} frames with ${selectedModel?.name || 'AI'}...` });
+    setVideoFrames([]);
+    setIsAnimated(false);
 
     try {
       const res = await fetch('/api/generate/video', {
@@ -601,7 +671,19 @@ function VideoGenPanel() {
       }
 
       const data = await res.json();
+
+      // Set the video URL (GIF or first frame)
       setGeneratedVideo(data.video_url);
+
+      // Set individual frames for player
+      if (data.frames && data.frames.length > 0) {
+        setVideoFrames(data.frames);
+      } else {
+        setVideoFrames([data.video_url]);
+      }
+
+      setIsAnimated(data.is_animated || false);
+
       addGalleryItem({
         id: crypto.randomUUID(),
         type: 'video',
@@ -614,7 +696,10 @@ function VideoGenPanel() {
         modelUsed: data.model_used,
         provider: data.provider,
       });
-      toast.success(`Video keyframe generated with ${data.model_used || 'AI'}!`);
+
+      const frameCount = data.frame_count || 1;
+      const animStatus = data.is_animated ? 'animated' : `${frameCount} frames`;
+      toast.success(`Video generated with ${data.model_used || 'AI'} (${animStatus})!`);
     } catch (err: any) {
       toast.error(err.message || 'Video generation failed.');
     } finally {
@@ -623,6 +708,7 @@ function VideoGenPanel() {
   }, [videoSettings, safetySettings, setVideoProgress, setGeneratedVideo, addGalleryItem, addSafetyLog]);
 
   const selectedVideoModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
+  const hasVideo = generatedVideo && videoFrames.length > 0;
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -632,7 +718,7 @@ function VideoGenPanel() {
         </div>
         <div>
           <h2 className="text-2xl font-bold">Video Generation</h2>
-          <p className="text-sm text-zinc-500">Create cinematic AI video keyframes — free, no API key</p>
+          <p className="text-sm text-zinc-500">Create animated AI videos — free, no API key</p>
         </div>
         <Badge className="ml-auto bg-emerald-600/20 text-emerald-300 border-0">
           <Globe className="w-3 h-3 mr-1" /> Free
@@ -719,8 +805,8 @@ function VideoGenPanel() {
               </div>
 
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                Generates a cinematic 16:9 keyframe image for your video scene
+                <Video className="w-3.5 h-3.5" />
+                Generates an animated video with {Math.min(Math.max(Math.ceil(videoSettings.duration / 2), 2), 6)} cinematic frames
               </div>
 
               <Button
@@ -730,11 +816,11 @@ function VideoGenPanel() {
               >
                 {videoProgress.isGenerating ? (
                   <>
-                    <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> Generating with {selectedVideoModel?.name || 'AI'}...
+                    <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message}
                   </>
                 ) : (
                   <>
-                    <Film className="w-5 h-5 mr-2" /> Generate with {selectedVideoModel?.name || 'AI'}
+                    <Film className="w-5 h-5 mr-2" /> Generate Video with {selectedVideoModel?.name || 'AI'}
                   </>
                 )}
               </Button>
@@ -743,7 +829,7 @@ function VideoGenPanel() {
                 <div className="space-y-2">
                   <Progress value={50} className="h-2 animate-pulse" />
                   <p className="text-xs text-zinc-500 text-center">
-                    {videoProgress.message}
+                    Generating multiple frames... This may take 30-90 seconds
                   </p>
                 </div>
               )}
@@ -756,7 +842,7 @@ function VideoGenPanel() {
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardHeader>
               <CardTitle className="text-zinc-300 text-sm flex items-center gap-2">
-                <Camera className="w-4 h-4" /> Video Keyframe Preview
+                <Video className="w-4 h-4" /> Video Preview
                 {selectedVideoModel && (
                   <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">
                     {selectedVideoModel.name}
@@ -766,39 +852,39 @@ function VideoGenPanel() {
             </CardHeader>
             <CardContent>
               <div className="aspect-video rounded-xl bg-zinc-800/30 border border-zinc-800 flex items-center justify-center overflow-hidden">
-                {generatedVideo ? (
-                  <ImageWithLoader src={generatedVideo} />
+                {hasVideo ? (
+                  <VideoPlayer gifUrl={generatedVideo} frames={videoFrames} isAnimated={isAnimated} />
                 ) : videoProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
-                    <p className="text-sm">Generating your keyframe...</p>
-                    <p className="text-xs mt-1 text-zinc-600">This may take 15-45 seconds</p>
+                    <p className="text-sm">Generating your video...</p>
+                    <p className="text-xs mt-1 text-zinc-600">Creating multiple frames, this may take 30-90 seconds</p>
                   </div>
                 ) : (
                   <div className="text-center text-zinc-600">
                     <Film className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">Video keyframe will appear here</p>
+                    <p className="text-sm">Your animated video will appear here</p>
                     <p className="text-xs mt-1 text-zinc-700">Select a model and enter a prompt to start</p>
                   </div>
                 )}
               </div>
-              {generatedVideo && (
+              {hasVideo && (
                 <div className="flex gap-2 mt-4">
                   <Button variant="outline" className="flex-1 border-zinc-700"
                     onClick={() => {
                       const a = document.createElement('a');
                       a.href = generatedVideo;
-                      a.download = `neuralforge-video-${Date.now()}.png`;
+                      a.download = `neuralforge-video-${Date.now()}.${isAnimated ? 'gif' : 'png'}`;
                       a.click();
                     }}>
-                    <Download className="w-4 h-4 mr-2" /> Download
+                    <Download className="w-4 h-4 mr-2" /> Download {isAnimated ? 'GIF' : 'Image'}
                   </Button>
                   <Button
                     variant="outline"
                     className="border-zinc-700"
                     onClick={() => {
-                      navigator.clipboard.writeText(generatedVideo);
-                      toast.success('Image URL copied!');
+                      navigator.clipboard.writeText(generatedVideo.startsWith('data:') ? 'Video saved locally' : generatedVideo);
+                      toast.success('Copied!');
                     }}
                   >
                     <Copy className="w-4 h-4" />
@@ -812,28 +898,28 @@ function VideoGenPanel() {
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
               <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-400" /> Video Tips
+                <Star className="w-4 h-4 text-amber-400" /> How It Works
               </h3>
               <div className="space-y-2 text-xs text-zinc-500">
                 <p className="flex items-start gap-2">
                   <span className="text-amber-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Wan Video</strong> — Best for cinematic keyframes</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-red-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">SeeDance Pro</strong> — Premium motion-style frames</span>
+                  <span>NeuralForge generates <strong className="text-zinc-300">multiple cinematic frames</strong> showing different moments of your scene</span>
                 </p>
                 <p className="flex items-start gap-2">
                   <span className="text-violet-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Grok Video Pro</strong> — Creative & dynamic output</span>
+                  <span>Frames are automatically <strong className="text-zinc-300">stitched into an animated GIF</strong> for smooth playback</span>
                 </p>
                 <p className="flex items-start gap-2">
                   <span className="text-cyan-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">P-Video</strong> — Fast Pollinations native video</span>
+                  <span><strong className="text-zinc-300">Wan Video</strong> — Best for cinematic scenes</span>
                 </p>
                 <p className="flex items-start gap-2">
                   <span className="text-emerald-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Nova Reel</strong> — Professional Amazon cinematic</span>
+                  <span><strong className="text-zinc-300">SeeDance</strong> — Great for motion-rich content</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-pink-400 mt-0.5">•</span>
+                  <span><strong className="text-zinc-300">Longer duration</strong> = More frames = Smoother animation</span>
                 </p>
               </div>
             </CardContent>

@@ -628,16 +628,34 @@ export async function generateImage(
   }
 }
 
-// ─── Video Generation (generates cinematic keyframe) ──────────────────────
-export async function generateVideoKeyframe(
+// ─── Video Generation (generates multi-frame animated video) ──────────────
+
+// Scene progression prompts for video-like animation
+const SCENE_PROGRESSION = [
+  'beginning of the scene, establishing shot',
+  'early moments, scene starts to unfold',
+  'mid-scene, action developing',
+  'climactic moment, peak action',
+  'scene winding down, resolution',
+  'final moment, scene conclusion',
+];
+
+export async function generateVideo(
   prompt: string,
   style: string = 'Photorealistic',
   width: number = 1344,
   height: number = 768,
   modelId: string = 'wan',
-): Promise<{ imageUrl: string; isReal: boolean; provider: string; modelUsed: string }> {
+  numFrames: number = 4,
+): Promise<{
+  frames: string[];
+  gifUrl: string | null;
+  thumbnailUrl: string;
+  isReal: boolean;
+  provider: string;
+  modelUsed: string;
+}> {
   const stylePrefix = STYLE_MAP[style] || STYLE_MAP['Photorealistic'];
-  const enhancedPrompt = `${prompt}, ${stylePrefix}, cinematic frame, movie still, dramatic lighting, 16:9 aspect ratio, film grain`;
 
   // Map video model IDs to their Pollinations image equivalents
   const videoModelMap: Record<string, string> = {
@@ -655,28 +673,156 @@ export async function generateVideoKeyframe(
   };
 
   const pollinationsModel = videoModelMap[modelId] || 'wan';
+  const frames: string[] = [];
+  const actualFrames = Math.min(numFrames, 6); // Cap at 6 frames
 
-  try {
-    const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, pollinationsModel, width, height, undefined);
+  // Generate multiple keyframes with scene progression
+  const framePromises = [];
+  for (let i = 0; i < actualFrames; i++) {
+    const sceneDesc = SCENE_PROGRESSION[i] || `scene frame ${i + 1}`;
+    const framePrompt = `${prompt}, ${stylePrefix}, cinematic frame, ${sceneDesc}, dramatic lighting, 16:9 aspect ratio, film grain`;
+    const seed = 1000 + i * 100; // Deterministic but different seeds per frame
 
+    const url = buildPollinationsUrl(framePrompt, pollinationsModel, width, height, seed);
+    framePromises.push(
+      fetchImageAsBase64(url, 55000)
+        .catch(async () => {
+          // Fallback to flux model
+          const fallbackUrl = buildPollinationsUrl(framePrompt, 'flux', width, height, seed);
+          return fetchImageAsBase64(fallbackUrl, 30000).catch(() => url);
+        })
+    );
+  }
+
+  // Fetch all frames in parallel
+  const results = await Promise.allSettled(framePromises);
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      frames.push(result.value);
+    }
+  }
+
+  // If no frames were generated, try a single frame with simpler prompt
+  if (frames.length === 0) {
+    const fallbackPrompt = `${prompt}, ${stylePrefix}, cinematic frame`;
+    const url = buildPollinationsUrl(fallbackPrompt, 'flux', width, height, undefined);
     try {
-      const base64Image = await fetchImageAsBase64(pollinationsUrl, 55000);
-      return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
+      const base64Image = await fetchImageAsBase64(url, 55000);
+      frames.push(base64Image);
     } catch {
-      // Try with flux as fallback
-      try {
-        const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, undefined);
-        const base64Image = await fetchImageAsBase64(fallbackUrl, 30000);
-        return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: `${modelId} (flux fallback)` };
-      } catch {
-        return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
+      const placeholder = generatePlaceholderImage(prompt, style, width, height);
+      frames.push(placeholder);
+      return {
+        frames,
+        gifUrl: null,
+        thumbnailUrl: frames[0] || placeholder,
+        isReal: false,
+        provider: 'placeholder',
+        modelUsed: 'SVG Placeholder',
+      };
+    }
+  }
+
+  // Try to create an animated GIF using sharp
+  let gifUrl: string | null = null;
+  try {
+    gifUrl = await createAnimatedGif(frames);
+  } catch (err: any) {
+    console.log(`[NeuralForge] GIF creation failed: ${err.message}`);
+  }
+
+  return {
+    frames,
+    gifUrl,
+    thumbnailUrl: frames[0],
+    isReal: true,
+    provider: 'pollinations',
+    modelUsed: modelId,
+  };
+}
+
+// ─── Create Animated GIF from frames ──────────────────────────────────────
+async function createAnimatedGif(frameDataUrls: string[]): Promise<string> {
+  const sharp = await import('sharp');
+
+  // Decode base64 frames to buffers
+  const frameBuffers: Buffer[] = [];
+  for (const dataUrl of frameDataUrls) {
+    if (dataUrl.startsWith('data:')) {
+      const base64Data = dataUrl.split(',')[1];
+      if (base64Data) {
+        frameBuffers.push(Buffer.from(base64Data, 'base64'));
+      }
+    } else if (dataUrl.startsWith('http')) {
+      // Fetch the URL
+      const response = await fetch(dataUrl, { signal: AbortSignal.timeout(30000) });
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        frameBuffers.push(Buffer.from(arrayBuffer));
       }
     }
-  } catch (error: any) {
-    console.error(`[NeuralForge] Video keyframe generation failed:`, error.message);
-    const placeholder = generatePlaceholderImage(prompt, style, width, height);
-    return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
   }
+
+  if (frameBuffers.length === 0) throw new Error('No frames to create GIF');
+
+  // Resize all frames to same dimensions and convert to GIF-compatible format
+  const targetWidth = 512;
+  const targetHeight = Math.round(targetWidth * 9 / 16); // 16:9 ratio
+
+  const resizedFrames: Buffer[] = [];
+  for (const buf of frameBuffers) {
+    const resized = await sharp.default(buf)
+      .resize(targetWidth, targetHeight, { fit: 'cover' })
+      .gif()
+      .toBuffer();
+    resizedFrames.push(resized);
+  }
+
+  // Create animated GIF using sharp's composite/animation features
+  // Each frame displays for ~800ms (adjustable)
+  const delayMs = 800;
+
+  if (resizedFrames.length === 1) {
+    // Single frame - just return as base64 GIF
+    return `data:image/gif;base64,${resizedFrames[0].toString('base64')}`;
+  }
+
+  // Use sharp to create animated GIF
+  // sharp supports animated GIF via joinChannel
+  const gifOptions: Record<string, unknown> = {
+    delay: Array(resizedFrames.length).fill(delayMs),
+    loop: 0, // Infinite loop
+  };
+
+  // Create the composite input for animation
+  const compositeInputs = resizedFrames.slice(1).map((frame) => ({
+    input: frame,
+    delay: delayMs,
+  }));
+
+  const animatedGif = await sharp.default(resizedFrames[0])
+    .gif(gifOptions)
+    .joinChannel(compositeInputs.map(c => c.input), gifOptions)
+    .toBuffer();
+
+  return `data:image/gif;base64,${animatedGif.toString('base64')}`;
+}
+
+// ─── Legacy: Single keyframe generation (kept for compatibility) ──────────
+export async function generateVideoKeyframe(
+  prompt: string,
+  style: string = 'Photorealistic',
+  width: number = 1344,
+  height: number = 768,
+  modelId: string = 'wan',
+): Promise<{ imageUrl: string; isReal: boolean; provider: string; modelUsed: string }> {
+  const result = await generateVideo(prompt, style, width, height, modelId, 1);
+  return {
+    imageUrl: result.frames[0] || result.thumbnailUrl,
+    isReal: result.isReal,
+    provider: result.provider,
+    modelUsed: result.modelUsed,
+  };
 }
 
 // ─── Health Check ──────────────────────────────────────────────────────────
