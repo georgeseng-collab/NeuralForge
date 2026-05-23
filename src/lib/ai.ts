@@ -1,7 +1,7 @@
 // ─── NeuralForge AI Engine ─────────────────────────────────────────────────
 // Uses free public AI APIs that work from Vercel serverless functions
 // No API keys required for image generation!
-// Video: Generates cinematic keyframes via free image API, client encodes to video
+// Video: Real AI video via Pollinations API key OR enhanced motion video from images
 
 // ─── Supported Free AI Models ──────────────────────────────────────────────
 export interface FreeAIModel {
@@ -42,20 +42,21 @@ export const FREE_AI_MODELS: FreeAIModel[] = [
   { id: 'p-image', name: 'P-Image', provider: 'pollinations', type: 'image', description: 'Pollinations native creative', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
 ];
 
-export const FREE_VIDEO_MODELS: FreeAIModel[] = [
-  { id: 'flux', name: 'Flux Video', provider: 'pollinations', type: 'video', description: 'High-quality video frames, best detail', maxResolution: '1344x768', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'flux-realism', name: 'Flux Realism Video', provider: 'pollinations', type: 'video', description: 'Photorealistic cinematic frames', maxResolution: '1344x768', speed: 'medium', quality: 'ultra', free: true, noApiKey: true },
-  { id: 'flux-anime', name: 'Flux Anime Video', provider: 'pollinations', type: 'video', description: 'Anime-style animated video frames', maxResolution: '1344x768', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'gptimage', name: 'GPT Video', provider: 'pollinations', type: 'video', description: 'Detailed video keyframes', maxResolution: '1344x768', speed: 'medium', quality: 'high', free: true, noApiKey: true },
-  { id: 'seedream5', name: 'SeeDream Video', provider: 'pollinations', type: 'video', description: 'Vibrant cinematic video frames', maxResolution: '1344x768', speed: 'medium', quality: 'high', free: true, noApiKey: true },
-  { id: 'grok-imagine', name: 'Grok Video', provider: 'pollinations', type: 'video', description: 'Creative & dynamic video frames', maxResolution: '1344x768', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'nanobanana-2', name: 'NanoBanana Video', provider: 'pollinations', type: 'video', description: 'Fast & fun video generation', maxResolution: '1344x768', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'nova-canvas', name: 'Nova Canvas Video', provider: 'pollinations', type: 'video', description: 'Professional cinematic video', maxResolution: '1344x768', speed: 'medium', quality: 'high', free: true, noApiKey: true },
-  { id: 'turbo', name: 'Turbo Video', provider: 'pollinations', type: 'video', description: 'Ultra-fast video frame preview', maxResolution: '1344x768', speed: 'fast', quality: 'standard', free: true, noApiKey: true },
-];
+// ─── Real Video Models (Pollinations gen.pollinations.ai) ─────────────────
+// These use the gen.pollinations.ai/video/ endpoint and produce ACTUAL AI video
+export const REAL_VIDEO_MODELS = [
+  { id: 'ltx-2', name: 'LTX Video 2.3', description: 'Free! Fast AI video generation', speed: 'Fast', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['480p'] },
+  { id: 'nova-reel', name: 'Nova Reel', description: 'Free! 6-120s professional video', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 30, qualities: ['720p'] },
+  { id: 'wan', name: 'Wan 2.6', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 15, qualities: ['480p', '720p', '1080p'] },
+  { id: 'wan-fast', name: 'Wan Fast', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, free: false, maxDuration: 5, qualities: ['480p'] },
+  { id: 'seedance-2.0', name: 'Seedance 2.0', description: 'ByteDance multimodal video', speed: 'Slow', badge: 'Pro', needsApiKey: true, free: false, maxDuration: 15, qualities: ['720p'] },
+  { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 10, qualities: ['720p'] },
+  { id: 'veo', name: 'Veo 3.1', description: 'Google Veo with audio output', speed: 'Slow', badge: 'Ultra', needsApiKey: true, free: false, maxDuration: 8, qualities: ['720p', '1080p'] },
+  { id: 'grok-video-pro', name: 'Grok Video Pro', description: 'xAI creative video, 1-15s', speed: 'Medium', badge: 'Creative', needsApiKey: true, free: false, maxDuration: 15, qualities: ['720p'] },
+  { id: 'p-video', name: 'Pruna Video', description: 'Up to 1080p quality', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 10, qualities: ['720p', '1080p'] },
+] as const;
 
 // ─── Enhanced Style Enhancement Maps ────────────────────────────────────────
-// Improved for much better accuracy and quality
 const STYLE_MAP: Record<string, string> = {
   'Photorealistic': 'photorealistic, ultra detailed, 8k uhd, sharp focus, DSLR photo, natural lighting, high dynamic range, professional photography',
   'Anime': 'anime style, cel shaded, vibrant colors, manga art, studio ghibli, detailed anime illustration, clean lineart',
@@ -75,18 +76,6 @@ const STYLE_MAP: Record<string, string> = {
 
 // ─── Negative Prompt Enhancements ──────────────────────────────────────────
 const DEFAULT_NEGATIVES = 'blurry, low quality, distorted, deformed, disfigured, bad anatomy, bad hands, missing fingers, extra fingers, watermark, text, logo, signature, jpeg artifacts, noise, grainy, overexposed, underexposed, cropped, out of frame, worst quality';
-
-// ─── Video Scene Progression ────────────────────────────────────────────────
-const VIDEO_SCENE_PROGRESSION = [
-  'wide establishing shot, scene begins, camera slowly moving forward',
-  'medium shot, scene unfolding, gentle camera pan right',
-  'close-up detail, action developing, camera tracking subject',
-  'dynamic angle, peak moment, camera pulling back slightly',
-  'over-the-shoulder shot, scene resolving, soft camera movement',
-  'final wide shot, scene conclusion, camera settling',
-  'dramatic low angle, tension building, camera tilting up',
-  'aerial view, full scope reveal, camera descending',
-];
 
 // ─── Social Media Presets ───────────────────────────────────────────────────
 export const SOCIAL_MEDIA_PRESETS = {
@@ -122,6 +111,29 @@ function buildPollinationsUrl(
   return `https://image.pollinations.ai/prompt/${encodedPrompt}?${params.toString()}`;
 }
 
+// ─── Pollinations.ai Video API URL Builder ──────────────────────────────────
+function buildVideoApiUrl(
+  prompt: string,
+  model: string,
+  width: number,
+  height: number,
+  duration: number,
+  seed?: number,
+  apiKey?: string,
+): string {
+  const encodedPrompt = encodeURIComponent(prompt);
+  const params = new URLSearchParams();
+  params.set('model', model);
+  params.set('width', String(width));
+  params.set('height', String(height));
+  params.set('duration', String(duration));
+  if (seed !== undefined && seed !== null) params.set('seed', String(seed));
+  params.set('nologo', 'true');
+  params.set('enhance', 'true');
+  if (apiKey) params.set('key', apiKey);
+  return `https://gen.pollinations.ai/video/${encodedPrompt}?${params.toString()}`;
+}
+
 // ─── Fetch image from URL and convert to base64 ─────────────────────────
 async function fetchImageAsBase64(url: string, timeout = 90000): Promise<string> {
   const response = await fetch(url, {
@@ -140,6 +152,33 @@ async function fetchImageAsBase64(url: string, timeout = 90000): Promise<string>
   return `data:${mime};base64,${base64}`;
 }
 
+// ─── Fetch video from API and convert to base64 ──────────────────────────
+async function fetchVideoAsBase64(url: string, timeout = 180000): Promise<string> {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(timeout),
+    headers: {
+      'Accept': 'video/mp4,*/*',
+    },
+  });
+
+  if (!response.ok) {
+    // Try to parse error message
+    let errorMsg = `Video API returned ${response.status}`;
+    try {
+      const errData = await response.json();
+      errorMsg = errData?.error?.message || errData?.detail || errorMsg;
+    } catch {}
+    throw new Error(errorMsg);
+  }
+
+  const contentType = response.headers.get('content-type') || 'video/mp4';
+  const arrayBuffer = await response.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+  const mime = contentType.includes('webm') ? 'video/webm' : 'video/mp4';
+  return `data:${mime};base64,${base64}`;
+}
+
 // ─── Enhanced Prompt Builder ────────────────────────────────────────────────
 function buildEnhancedPrompt(
   prompt: string,
@@ -153,19 +192,16 @@ function buildEnhancedPrompt(
   let enhanced = `${prompt}, ${stylePrefix}`;
 
   if (isVideo) {
-    enhanced += ', cinematic frame, movie still, smooth motion blur, film grain, cinematic color grading';
+    enhanced += ', cinematic motion, smooth camera movement, dynamic scene, fluid animation';
   }
 
-  // Add negative hints in a way that helps the model (some models don't support negative prompts natively)
-  if (negatives) {
-    // For Pollinations, we include key negative hints as positive guidance
-    enhanced += ', well-composed, sharp, high quality, detailed';
-  }
+  // Add positive guidance
+  enhanced += ', well-composed, sharp, high quality, detailed';
 
   return enhanced;
 }
 
-// ─── Main Image Generation Function (ENHANCED) ───────────────────────────
+// ─── Main Image Generation Function ───────────────────────────────────────
 export async function generateImage(
   prompt: string,
   size: string = '1024x1024',
@@ -186,20 +222,17 @@ export async function generateImage(
       case 'pollinations': {
         const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, seed || undefined);
 
-        // Try to fetch as base64 first (most reliable display)
         try {
           const base64Image = await fetchImageAsBase64(pollinationsUrl, 55000);
           return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
         } catch (fetchErr: any) {
           console.log(`[NeuralForge] Base64 fetch failed for ${modelId}: ${fetchErr.message}. Trying flux fallback...`);
 
-          // Try flux as fallback
           try {
             const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
             const base64Image = await fetchImageAsBase64(fallbackUrl, 30000);
             return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
           } catch {
-            // Last resort: return the direct URL for the browser to load
             console.log('[NeuralForge] Returning direct URL for browser-side loading');
             return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
           }
@@ -216,94 +249,119 @@ export async function generateImage(
   }
 }
 
-// ─── Video Generation (generates cinematic keyframes for client-side video encoding) ──
-export async function generateVideo(
+// ─── Real AI Video Generation (gen.pollinations.ai) ─────────────────────────
+// This generates ACTUAL AI video using Pollinations' video models
+export async function generateRealVideo(
   prompt: string,
-  style: string = 'Photorealistic',
+  style: string = 'Cinematic',
+  width: number = 1344,
+  height: number = 768,
+  modelId: string = 'ltx-2',
+  duration: number = 5,
+  apiKey: string,
+  seed?: number,
+  negativePrompt: string = '',
+): Promise<{
+  videoBase64: string;
+  isReal: boolean;
+  provider: string;
+  modelUsed: string;
+  duration: number;
+  width: number;
+  height: number;
+}> {
+  const enhancedPrompt = buildEnhancedPrompt(prompt, style, negativePrompt, true);
+
+  // Determine aspect ratio from dimensions
+  const aspectRatio = height > width ? '9:16' : '16:9';
+
+  // Clamp duration based on model limits
+  const modelInfo = REAL_VIDEO_MODELS.find(m => m.id === modelId);
+  const maxDuration = modelInfo?.maxDuration || 10;
+  const clampedDuration = Math.min(Math.max(duration, 2), maxDuration);
+
+  const videoUrl = buildVideoApiUrl(
+    enhancedPrompt,
+    modelId,
+    width,
+    height,
+    clampedDuration,
+    seed || undefined,
+    apiKey,
+  );
+
+  console.log(`[NeuralForge] Requesting real AI video from ${modelId}, duration=${clampedDuration}s`);
+
+  try {
+    const videoBase64 = await fetchVideoAsBase64(videoUrl, 180000);
+    return {
+      videoBase64,
+      isReal: true,
+      provider: 'pollinations-video',
+      modelUsed: modelId,
+      duration: clampedDuration,
+      width,
+      height,
+    };
+  } catch (error: any) {
+    console.error(`[NeuralForge] Real video generation failed:`, error.message);
+    throw error;
+  }
+}
+
+// ─── Motion Video Generation (Free, No API Key) ────────────────────────────
+// Generates a high-quality image for client-side motion encoding
+export async function generateMotionVideoSource(
+  prompt: string,
+  style: string = 'Cinematic',
   width: number = 1344,
   height: number = 768,
   modelId: string = 'flux',
-  numFrames: number = 6,
   negativePrompt: string = '',
 ): Promise<{
-  frames: string[];
-  thumbnailUrl: string;
+  imageBase64: string;
   isReal: boolean;
   provider: string;
   modelUsed: string;
   width: number;
   height: number;
-  targetFps: number;
+  mode: 'motion';
 }> {
-  const enhancedBasePrompt = buildEnhancedPrompt(prompt, style, negativePrompt, true);
-  const actualFrames = Math.min(Math.max(numFrames, 4), 8); // 4-8 frames for smooth video
-  const frames: string[] = [];
+  // Generate a single high-quality image with cinematic style for motion encoding
+  const enhancedPrompt = buildEnhancedPrompt(prompt, style, negativePrompt, true);
+  const seed = seed_base(prompt);
 
-  // Generate multiple keyframes with cinematic scene progression - IN PARALLEL
-  const framePromises = [];
-  for (let i = 0; i < actualFrames; i++) {
-    const sceneDesc = VIDEO_SCENE_PROGRESSION[i] || `scene frame ${i + 1}`;
-    const framePrompt = `${prompt}, ${STYLE_MAP[style] || STYLE_MAP['Photorealistic']}, cinematic frame, ${sceneDesc}, film grain, color graded, ${width > height ? 'widescreen' : 'vertical'} composition`;
+  const url = buildPollinationsUrl(enhancedPrompt, modelId, width, height, seed);
 
-    // Use different seeds per frame for variety but same base seed for coherence
-    const frameSeed = (seed_base(prompt) + i * 137) % 2147483647;
-
-    const url = buildPollinationsUrl(framePrompt, modelId, width, height, frameSeed);
-    framePromises.push(
-      fetchImageAsBase64(url, 50000)
-        .catch(async () => {
-          // Fallback to flux model
-          const fallbackUrl = buildPollinationsUrl(framePrompt, 'flux', width, height, frameSeed);
-          return fetchImageAsBase64(fallbackUrl, 30000).catch(() => url);
-        })
-    );
-  }
-
-  // Fetch all frames in parallel for speed
-  const results = await Promise.allSettled(framePromises);
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      frames.push(result.value);
-    }
-  }
-
-  // If no frames were generated, try a single frame with simpler prompt
-  if (frames.length === 0) {
-    const fallbackPrompt = `${prompt}, ${STYLE_MAP[style] || STYLE_MAP['Photorealistic']}, cinematic`;
-    const url = buildPollinationsUrl(fallbackPrompt, 'flux', width, height, undefined);
+  try {
+    const imageBase64 = await fetchImageAsBase64(url, 60000);
+    return {
+      imageBase64,
+      isReal: true,
+      provider: 'pollinations-motion',
+      modelUsed: modelId,
+      width,
+      height,
+      mode: 'motion',
+    };
+  } catch (fetchErr: any) {
+    console.log(`[NeuralForge] Image fetch failed for ${modelId}: ${fetchErr.message}. Trying flux fallback...`);
     try {
-      const base64Image = await fetchImageAsBase64(url, 45000);
-      frames.push(base64Image);
-    } catch {
-      const placeholder = generatePlaceholderImage(prompt, style, width, height);
-      frames.push(placeholder);
+      const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed);
+      const imageBase64 = await fetchImageAsBase64(fallbackUrl, 30000);
       return {
-        frames,
-        thumbnailUrl: frames[0] || placeholder,
-        isReal: false,
-        provider: 'placeholder',
-        modelUsed: 'SVG Placeholder',
+        imageBase64,
+        isReal: true,
+        provider: 'pollinations-motion',
+        modelUsed: 'flux',
         width,
         height,
-        targetFps: 2,
+        mode: 'motion',
       };
+    } catch {
+      throw new Error('Failed to generate source image for motion video');
     }
   }
-
-  // Calculate target FPS for smooth playback
-  // More frames = lower FPS for slower, smoother transitions
-  const targetFps = actualFrames >= 6 ? 3 : 2;
-
-  return {
-    frames,
-    thumbnailUrl: frames[0],
-    isReal: true,
-    provider: 'pollinations',
-    modelUsed: modelId,
-    width,
-    height,
-    targetFps,
-  };
 }
 
 // ─── Deterministic seed from prompt string ─────────────────────────────────
@@ -312,7 +370,7 @@ function seed_base(str: string): number {
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = hash & hash;
   }
   return Math.abs(hash);
 }

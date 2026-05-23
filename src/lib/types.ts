@@ -25,6 +25,9 @@ export interface VideoSettings {
   modelId: string;
   socialPreset: string;
   negativePrompt: string;
+  pollinationsApiKey: string;
+  videoMode: 'real' | 'motion'; // real = AI video via API key, motion = Ken Burns effect from image
+  motionEffect: 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'ken-burns' | 'drift';
 }
 
 export interface GalleryItem {
@@ -120,15 +123,15 @@ export const STYLE_OPTIONS = [
 ] as const;
 
 export const RESOLUTION_OPTIONS = [
-  { label: '1024 × 1024 (Square)', width: 1024, height: 1024 },
-  { label: '768 × 1344 (Portrait 9:16)', width: 768, height: 1344 },
-  { label: '1344 × 768 (Landscape 16:9)', width: 1344, height: 768 },
-  { label: '864 × 1152 (Portrait 3:4)', width: 864, height: 1152 },
-  { label: '1152 × 864 (Landscape 4:3)', width: 1152, height: 864 },
+  { label: '1024 x 1024 (Square)', width: 1024, height: 1024 },
+  { label: '768 x 1344 (Portrait 9:16)', width: 768, height: 1344 },
+  { label: '1344 x 768 (Landscape 16:9)', width: 1344, height: 768 },
+  { label: '864 x 1152 (Portrait 3:4)', width: 864, height: 1152 },
+  { label: '1152 x 864 (Landscape 4:3)', width: 1152, height: 864 },
 ] as const;
 
-export const DURATION_OPTIONS = [2, 3, 5, 8, 10] as const;
-export const FPS_OPTIONS = [2, 3, 4, 6, 8, 12] as const;
+export const DURATION_OPTIONS = [2, 3, 5, 8, 10, 15] as const;
+export const FPS_OPTIONS = [2, 3, 4, 6, 8, 12, 24, 30] as const;
 
 // ─── Social Media Video Presets ────────────────────────────────────────────
 export const VIDEO_PRESET_OPTIONS = [
@@ -141,6 +144,16 @@ export const VIDEO_PRESET_OPTIONS = [
   { id: 'facebook-reel', name: 'Facebook Reel', icon: '📘', width: 768, height: 1344, aspect: '9:16', desc: 'Vertical for Reels' },
   { id: 'twitter-video', name: 'X/Twitter Video', icon: '🐦', width: 1344, height: 768, aspect: '16:9', desc: 'Landscape 16:9' },
   { id: 'custom', name: 'Custom', icon: '⚙️', width: 1344, height: 768, aspect: 'Custom', desc: 'Custom dimensions' },
+] as const;
+
+// ─── Motion Effect Options (for free mode) ───────────────────────────────
+export const MOTION_EFFECT_OPTIONS = [
+  { id: 'ken-burns' as const, name: 'Ken Burns', description: 'Classic cinematic zoom + pan', icon: '🎬' },
+  { id: 'zoom-in' as const, name: 'Zoom In', description: 'Slow zoom into the scene', icon: '🔍' },
+  { id: 'zoom-out' as const, name: 'Zoom Out', description: 'Reveal from close-up to wide', icon: '🔎' },
+  { id: 'pan-left' as const, name: 'Pan Left', description: 'Smooth pan across the scene', icon: '⬅️' },
+  { id: 'pan-right' as const, name: 'Pan Right', description: 'Smooth pan across the scene', icon: '➡️' },
+  { id: 'drift' as const, name: 'Drift', description: 'Gentle floating drift effect', icon: '🌊' },
 ] as const;
 
 export const IMAGE_MODEL_OPTIONS = [
@@ -171,16 +184,29 @@ export const IMAGE_MODEL_OPTIONS = [
   { id: 'p-image', name: 'P-Image', description: 'Pollinations native creative', speed: 'Fast', badge: 'Popular' },
 ] as const;
 
+// ─── Real AI Video Models (gen.pollinations.ai) ───────────────────────────
 export const VIDEO_MODEL_OPTIONS = [
-  { id: 'flux', name: 'Flux Video', description: 'High-quality video frames, best detail', speed: 'Fast', badge: 'Popular' },
-  { id: 'flux-realism', name: 'Flux Realism Video', description: 'Photorealistic cinematic frames', speed: 'Medium', badge: 'HD' },
-  { id: 'flux-anime', name: 'Flux Anime Video', description: 'Anime-style animated video', speed: 'Fast', badge: 'Anime' },
-  { id: 'gptimage', name: 'GPT Video', description: 'Detailed video keyframes', speed: 'Medium', badge: 'Smart' },
-  { id: 'seedream5', name: 'SeeDream Video', description: 'Vibrant cinematic frames', speed: 'Medium', badge: 'Creative' },
-  { id: 'grok-imagine', name: 'Grok Video', description: 'Creative & dynamic frames', speed: 'Fast', badge: 'Creative' },
-  { id: 'nanobanana-2', name: 'NanoBanana Video', description: 'Fast & fun video generation', speed: 'Fast', badge: 'Fun' },
-  { id: 'nova-canvas', name: 'Nova Canvas Video', description: 'Professional cinematic video', speed: 'Medium', badge: 'Pro' },
-  { id: 'turbo', name: 'Turbo Video', description: 'Ultra-fast video frame preview', speed: 'Very Fast', badge: 'Speed' },
+  { id: 'ltx-2', name: 'LTX Video 2.3', description: 'FREE! Fast AI video generation', speed: 'Fast', badge: 'Free', needsApiKey: true, maxDuration: 5 },
+  { id: 'nova-reel', name: 'Nova Reel', description: 'FREE! 6-120s professional video', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 30 },
+  { id: 'wan-fast', name: 'Wan Fast', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, maxDuration: 5 },
+  { id: 'wan', name: 'Wan 2.6', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 15 },
+  { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'Pro', needsApiKey: true, maxDuration: 10 },
+  { id: 'seedance-2.0', name: 'Seedance 2.0', description: 'ByteDance multimodal video', speed: 'Slow', badge: 'Ultra', needsApiKey: true, maxDuration: 15 },
+  { id: 'veo', name: 'Veo 3.1', description: 'Google Veo with audio output', speed: 'Slow', badge: 'Ultra', needsApiKey: true, maxDuration: 8 },
+  { id: 'grok-video-pro', name: 'Grok Video Pro', description: 'xAI creative video, 1-15s', speed: 'Medium', badge: 'Creative', needsApiKey: true, maxDuration: 15 },
+  { id: 'p-video', name: 'Pruna Video', description: 'Up to 1080p quality', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 10 },
+] as const;
+
+// ─── Image models for Motion Video (free, no API key) ─────────────────────
+export const MOTION_SOURCE_MODEL_OPTIONS = [
+  { id: 'flux-realism', name: 'Flux Realism', description: 'Best for photorealistic video', speed: 'Medium', badge: 'Best' },
+  { id: 'flux', name: 'Flux', description: 'Great all-rounder', speed: 'Fast', badge: 'Popular' },
+  { id: 'flux-anime', name: 'Flux Anime', description: 'Anime-style motion', speed: 'Fast', badge: 'Anime' },
+  { id: 'flux-3d', name: 'Flux 3D', description: '3D rendered video', speed: 'Medium', badge: '3D' },
+  { id: 'flux-pro', name: 'Flux Pro', description: 'Premium detail for video', speed: 'Slow', badge: 'Pro' },
+  { id: 'turbo', name: 'Turbo', description: 'Ultra-fast generation', speed: 'Very Fast', badge: 'Speed' },
+  { id: 'gptimage', name: 'GPT Image', description: 'Best prompt understanding', speed: 'Medium', badge: 'Smart' },
+  { id: 'seedream5', name: 'SeeDream 5', description: 'Vibrant colors', speed: 'Medium', badge: 'Creative' },
 ] as const;
 
 export const DEFAULT_MODELS: AIModel[] = [

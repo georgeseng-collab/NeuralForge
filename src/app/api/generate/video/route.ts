@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateVideo } from '@/lib/ai';
+import { generateRealVideo, generateMotionVideoSource } from '@/lib/ai';
 
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 minutes for video generation
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,12 +9,15 @@ export async function POST(request: NextRequest) {
     const {
       prompt,
       duration = 5,
-      fps = 3,
+      fps = 8,
       style = 'Cinematic',
-      modelId = 'flux',
+      modelId = 'ltx-2',
       width = 1344,
       height = 768,
       negativePrompt = '',
+      pollinationsApiKey = '',
+      videoMode = 'motion', // 'real' or 'motion'
+      motionEffect = 'ken-burns',
     } = body;
 
     if (!prompt || !prompt.trim()) {
@@ -24,36 +27,69 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate number of frames: more frames for smoother video
-    // duration * fps gives total frames, but cap to stay within timeout
-    const numFrames = Math.min(Math.max(Math.ceil(duration * fps), 4), 8);
+    // ─── Mode 1: Real AI Video (requires API key) ──────────────────────────
+    if (videoMode === 'real' && pollinationsApiKey) {
+      try {
+        const result = await generateRealVideo(
+          prompt,
+          style,
+          width,
+          height,
+          modelId,
+          duration,
+          pollinationsApiKey,
+          undefined,
+          negativePrompt,
+        );
 
-    const result = await generateVideo(
+        return NextResponse.json({
+          video_base64: result.videoBase64,
+          video_mime: result.videoBase64.startsWith('data:video/webm') ? 'video/webm' : 'video/mp4',
+          is_real_generation: true,
+          mode: 'ai-video',
+          provider: result.provider,
+          model_used: result.modelUsed,
+          duration: result.duration,
+          width: result.width,
+          height: result.height,
+          prompt,
+        });
+      } catch (error: any) {
+        console.error('[NeuralForge] Real video generation failed:', error.message);
+        // If real video fails, fall back to motion mode
+        return NextResponse.json({
+          detail: `AI Video generation failed: ${error.message}. Try a different model or use Motion mode (free, no API key needed).`,
+          fallback_mode: 'motion',
+        }, { status: 502 });
+      }
+    }
+
+    // ─── Mode 2: Motion Video (Free, No API Key) ──────────────────────────
+    // Generates a high-quality image that will be animated client-side with Ken Burns / motion effects
+    const motionResult = await generateMotionVideoSource(
       prompt,
       style,
       width,
       height,
-      modelId,
-      numFrames,
+      modelId === 'ltx-2' || modelId === 'nova-reel' || modelId === 'wan' || modelId === 'wan-fast'
+        ? 'flux-realism' // Use image model for motion source
+        : modelId, // Use the selected image model directly
       negativePrompt,
     );
 
     return NextResponse.json({
-      frames: result.frames,
-      frame_count: result.frames.length,
-      thumbnail_url: result.thumbnailUrl,
-      width: result.width,
-      height: result.height,
-      target_fps: result.targetFps,
-      is_nsfw: false,
-      prompt,
+      image_base64: motionResult.imageBase64,
+      is_real_generation: false,
+      mode: 'motion',
+      provider: motionResult.provider,
+      model_used: motionResult.modelUsed,
+      width: motionResult.width,
+      height: motionResult.height,
+      motion_effect: motionEffect || 'ken-burns',
       duration,
       fps,
-      is_real_generation: result.isReal,
-      mode: result.isReal ? 'ai-generated' : 'demo-preview',
-      provider: result.provider,
-      model_used: result.modelUsed,
-      note: `${result.frames.length} cinematic frames generated. Client will encode to video for download.`,
+      prompt,
+      note: 'High-quality AI image generated. Client will apply cinematic motion effects and encode to video.',
     });
   } catch (error: any) {
     console.error('Video generation error:', error);

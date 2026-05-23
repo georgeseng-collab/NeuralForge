@@ -8,12 +8,13 @@ import {
   RotateCcw, Check, AlertTriangle, Eye, EyeOff, Plus, X, Server,
   Monitor, HardDrive, RefreshCw, ExternalLink, Copy, Volume2,
   Palette, Layers, Clock, Box, Globe, Cloud, Star, Bolt, Moon,
-  Wand2, Paintbrush, Camera, Video, Share2
+  Wand2, Paintbrush, Camera, Video, Share2, Lock, Key
 } from 'lucide-react';
 import { useNeuralForgeStore } from '@/lib/store';
 import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
   IMAGE_MODEL_OPTIONS, VIDEO_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
+  MOTION_EFFECT_OPTIONS, MOTION_SOURCE_MODEL_OPTIONS,
   type GalleryItem, type SafetyLogEntry,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -56,14 +57,21 @@ const BADGE_COLORS: Record<string, string> = {
   'Dark': 'bg-gray-600/30 text-gray-300',
   'Fun': 'bg-yellow-600/30 text-yellow-300',
   'Smart': 'bg-indigo-600/30 text-indigo-300',
+  'Free': 'bg-emerald-600/30 text-emerald-300',
+  'Ultra': 'bg-purple-600/30 text-purple-300',
+  'Best': 'bg-amber-600/30 text-amber-300',
 };
 
-// ─── Frame-to-Video Encoder (Client-Side) ────────────────────────────────────
-async function encodeFramesToVideo(
-  frames: string[],
+// ─── Motion-to-Video Encoder (Client-Side) ───────────────────────────────────
+type MotionEffect = 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'ken-burns' | 'drift';
+
+async function encodeMotionToVideo(
+  imageSrc: string,
   width: number,
   height: number,
-  fps: number = 3,
+  duration: number,
+  fps: number = 24,
+  effect: MotionEffect = 'ken-burns',
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
@@ -72,11 +80,9 @@ async function encodeFramesToVideo(
       canvas.height = height;
       const ctx = canvas.getContext('2d')!;
 
-      // Use MediaRecorder to create WebM video
-      const stream = canvas.captureStream(fps * 2); // Capture at higher rate for smoother encoding
+      const stream = canvas.captureStream(fps);
       const chunks: Blob[] = [];
 
-      // Try VP9 first (better quality), fall back to VP8, then default
       let mimeType = 'video/webm;codecs=vp9';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'video/webm;codecs=vp8';
@@ -87,7 +93,7 @@ async function encodeFramesToVideo(
 
       const recorder = new MediaRecorder(stream, {
         mimeType,
-        videoBitsPerSecond: 5000000, // 5 Mbps for good quality
+        videoBitsPerSecond: 8000000,
       });
 
       recorder.ondataavailable = (e) => {
@@ -96,55 +102,102 @@ async function encodeFramesToVideo(
 
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        resolve(url);
+        resolve(URL.createObjectURL(blob));
       };
 
       recorder.onerror = () => reject(new Error('Video encoding failed'));
 
-      // Load all frame images first
-      const loadFrame = (src: string): Promise<HTMLImageElement> => {
-        return new Promise((res, rej) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => res(img);
-          img.onerror = rej;
-          img.src = src;
-        });
-      };
-
-      // Start encoding
-      (async () => {
-        const images = await Promise.all(frames.map(loadFrame));
+      const img = document.createElement('img');
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
         recorder.start();
 
-        const frameDuration = 1000 / fps; // ms per frame
-        const totalFrames = images.length;
-        // Repeat the sequence to create a looping video of reasonable length
-        const loops = Math.max(3, Math.ceil(10 / (totalFrames / fps))); // At least 10 seconds
+        const totalFrames = duration * fps;
+        let frame = 0;
 
-        for (let loop = 0; loop < loops; loop++) {
-          for (let i = 0; i < totalFrames; i++) {
-            // Clear canvas
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, width, height);
-
-            // Draw frame centered (maintain aspect ratio)
-            const img = images[i];
-            const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
-            const w = img.width * scale;
-            const h = img.height * scale;
-            const x = (canvas.width - w) / 2;
-            const y = (canvas.height - h) / 2;
-            ctx.drawImage(img, x, y, w, h);
-
-            // Wait for frame duration
-            await new Promise(r => setTimeout(r, frameDuration));
+        const renderFrame = () => {
+          if (frame >= totalFrames) {
+            recorder.stop();
+            return;
           }
-        }
 
-        recorder.stop();
-      })();
+          const progress = frame / totalFrames; // 0 to 1
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, width, height);
+
+          // Calculate motion transforms based on effect
+          let dx = 0, dy = 0, dw = width, dh = height;
+          const padding = 0.15; // 15% extra image area for motion
+
+          switch (effect) {
+            case 'zoom-in': {
+              const scale = 1 + progress * padding * 2;
+              const iw = width * scale;
+              const ih = height * scale;
+              dx = (width - iw) / 2;
+              dy = (height - ih) / 2;
+              dw = iw;
+              dh = ih;
+              break;
+            }
+            case 'zoom-out': {
+              const scale = 1 + (1 - progress) * padding * 2;
+              const iw = width * scale;
+              const ih = height * scale;
+              dx = (width - iw) / 2;
+              dy = (height - ih) / 2;
+              dw = iw;
+              dh = ih;
+              break;
+            }
+            case 'pan-left': {
+              const panAmount = padding * width;
+              const scale = 1 + padding;
+              dx = -progress * panAmount;
+              dy = -(height * scale - height) / 2;
+              dw = width * scale;
+              dh = height * scale;
+              break;
+            }
+            case 'pan-right': {
+              const panAmount = padding * width;
+              const scale = 1 + padding;
+              dx = -(width * scale - width) + progress * panAmount;
+              dy = -(height * scale - height) / 2;
+              dw = width * scale;
+              dh = height * scale;
+              break;
+            }
+            case 'ken-burns': {
+              // Simplified Ken Burns: zoom in + slight pan
+              const s = 1 + progress * padding * 1.5;
+              dx = (width - width * s) / 2 + progress * padding * width * 0.3;
+              dy = (height - height * s) / 2 + progress * padding * height * 0.15;
+              dw = width * s;
+              dh = height * s;
+              break;
+            }
+            case 'drift': {
+              const driftX = Math.sin(progress * Math.PI * 2) * padding * width * 0.3;
+              const driftY = Math.cos(progress * Math.PI * 1.5) * padding * height * 0.2;
+              const scale = 1 + padding * 0.5;
+              dx = (width - width * scale) / 2 + driftX;
+              dy = (height - height * scale) / 2 + driftY;
+              dw = width * scale;
+              dh = height * scale;
+              break;
+            }
+          }
+
+          ctx.drawImage(img, dx, dy, dw, dh);
+          frame++;
+          requestAnimationFrame(renderFrame);
+        };
+
+        renderFrame();
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = imageSrc;
     } catch (err) {
       reject(err);
     }
@@ -579,76 +632,55 @@ function ImageGenPanel() {
   );
 }
 
-// ─── Video Player Component ──────────────────────────────────────────────────
-function VideoPlayer({ frames, targetFps }: { frames: string[]; targetFps: number }) {
-  const [currentFrame, setCurrentFrame] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [loadedFrames, setLoadedFrames] = useState<Set<number>>(new Set());
-
-  const frameInterval = Math.round(1000 / targetFps);
-
-  useEffect(() => {
-    if (!isPlaying || frames.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentFrame((prev) => (prev + 1) % frames.length);
-    }, frameInterval);
-    return () => clearInterval(interval);
-  }, [isPlaying, frames.length, frameInterval]);
-
-  const handleFrameLoad = (idx: number) => {
-    setLoadedFrames(prev => {
-      const next = new Set(prev);
-      next.add(idx);
-      return next;
-    });
-  };
-
-  if (frames.length === 1) {
-    return <ImageWithLoader src={frames[0]} />;
-  }
-
-  return (
-    <div className="w-full h-full relative">
-      {frames.map((frame, i) => (
-        <img
-          key={i}
-          src={frame}
-          alt={`Frame ${i + 1}`}
-          className={`w-full h-full object-contain absolute inset-0 transition-opacity duration-200 ${i === currentFrame ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-          onLoad={() => handleFrameLoad(i)}
-          onError={() => handleFrameLoad(i)}
-        />
-      ))}
-
-      {!loadedFrames.has(currentFrame) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800/50 z-20">
-          <RefreshCw className="w-6 h-6 animate-spin text-zinc-400" />
-        </div>
-      )}
-
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/70 backdrop-blur rounded-full px-3 py-1.5 z-30">
-        <button onClick={() => setIsPlaying(!isPlaying)} className="text-white hover:text-amber-300 transition-colors">
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-        </button>
-        <div className="flex gap-1">
-          {frames.map((_, i) => (
-            <button key={i} onClick={() => { setCurrentFrame(i); setIsPlaying(false); }}
-              className={`w-2 h-2 rounded-full transition-all ${i === currentFrame ? 'bg-amber-400 scale-125' : 'bg-white/40 hover:bg-white/60'}`} />
-          ))}
-        </div>
-        <span className="text-[10px] text-white/60">{currentFrame + 1}/{frames.length}</span>
-      </div>
-    </div>
-  );
-}
+// ─── Video Player Component (removed - using native <video> now) ────────────
 
 // ─── Video Generation Panel ──────────────────────────────────────────────────
 function VideoGenPanel() {
   const { videoSettings, updateVideoSettings, videoProgress, setVideoProgress, generatedVideo, setGeneratedVideo, generatedVideoUrl, setGeneratedVideoUrl, addGalleryItem, safetySettings, addSafetyLog } = useNeuralForgeStore();
-  const [videoFrames, setVideoFrames] = useState<string[]>([]);
   const [isEncoding, setIsEncoding] = useState(false);
-  const [targetFps, setTargetFps] = useState(3);
+  const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
+  const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Clean up blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
+    };
+  }, []);
+
+  // Auto-start motion encoding when source image is received
+  useEffect(() => {
+    if (!sourceImage || videoSettings.videoMode !== 'motion') return;
+    let cancelled = false;
+    setIsEncoding(true);
+    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: videoSettings.duration * 24, message: `Encoding motion video (${videoSettings.motionEffect})...` });
+    encodeMotionToVideo(
+      sourceImage,
+      videoSettings.width,
+      videoSettings.height,
+      videoSettings.duration,
+      24,
+      videoSettings.motionEffect,
+    ).then((url) => {
+      if (!cancelled) {
+        if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
+        setVideoBlobUrl(url);
+        setGeneratedVideoUrl(url);
+        setIsEncoding(false);
+        setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
+        toast.success('Motion video encoded!');
+      }
+    }).catch((err) => {
+      if (!cancelled) {
+        setIsEncoding(false);
+        setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
+        toast.error('Motion encoding failed: ' + err.message);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [sourceImage]);
 
   const selectedPreset = VIDEO_PRESET_OPTIONS.find(p => p.id === videoSettings.socialPreset);
 
@@ -686,17 +718,38 @@ function VideoGenPanel() {
       }
     }
 
-    const selectedModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
-    const numFrames = Math.min(Math.max(Math.ceil(videoSettings.duration * videoSettings.fps), 4), 8);
-    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: numFrames, message: `Generating ${numFrames} frames with ${selectedModel?.name || 'AI'}...` });
-    setVideoFrames([]);
+    // Validate API key for real mode
+    if (videoSettings.videoMode === 'real' && !videoSettings.pollinationsApiKey.trim()) {
+      toast.error('API key required for AI Video mode. Get a free key at enter.pollinations.ai');
+      return;
+    }
+
+    // Clean up previous blob URLs
+    if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
+    setVideoBlobUrl(null);
+    setSourceImage(null);
     setGeneratedVideoUrl(null);
+    setGeneratedVideo(null);
+
+    const isMotion = videoSettings.videoMode === 'motion';
+
+    if (isMotion) {
+      const motionModel = MOTION_SOURCE_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId) || MOTION_SOURCE_MODEL_OPTIONS[0];
+      setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating image with ${motionModel.name} for motion video...` });
+    } else {
+      const realModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId) || VIDEO_MODEL_OPTIONS[0];
+      setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating AI video with ${realModel.name}...` });
+    }
 
     try {
       const res = await fetch('/api/generate/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(videoSettings),
+        body: JSON.stringify({
+          ...videoSettings,
+          videoMode: videoSettings.videoMode,
+          motionEffect: videoSettings.motionEffect,
+        }),
       });
 
       if (!res.ok) {
@@ -706,58 +759,74 @@ function VideoGenPanel() {
 
       const data = await res.json();
 
-      setGeneratedVideo(data.thumbnail_url);
-
-      if (data.frames && data.frames.length > 0) {
-        setVideoFrames(data.frames);
+      if (isMotion) {
+        // Motion mode: we get an image_base64, set as sourceImage which triggers encoding
+        const imageUrl = data.image_base64
+          ? `data:image/png;base64,${data.image_base64}`
+          : data.image_url;
+        setSourceImage(imageUrl);
+        setGeneratedVideo(imageUrl);
+        addGalleryItem({
+          id: crypto.randomUUID(),
+          type: 'video',
+          prompt: videoSettings.prompt,
+          settings: { ...videoSettings },
+          url: imageUrl,
+          thumbnailUrl: imageUrl,
+          timestamp: Date.now(),
+          isNsfw: data.is_nsfw || false,
+          modelUsed: data.model_used,
+          provider: data.provider,
+        });
+        toast.success(`Image generated! Encoding motion video (${videoSettings.motionEffect})...`);
       } else {
-        setVideoFrames([data.thumbnail_url]);
+        // Real AI video mode: we get a video_base64
+        if (data.video_base64) {
+          const byteChars = atob(data.video_base64);
+          const byteNumbers = new Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) {
+            byteNumbers[i] = byteChars.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'video/mp4' });
+          const url = URL.createObjectURL(blob);
+          setVideoBlobUrl(url);
+          setGeneratedVideoUrl(url);
+          setGeneratedVideo(url);
+        } else if (data.video_url) {
+          setGeneratedVideo(data.video_url);
+          setGeneratedVideoUrl(data.video_url);
+        }
+        addGalleryItem({
+          id: crypto.randomUUID(),
+          type: 'video',
+          prompt: videoSettings.prompt,
+          settings: { ...videoSettings },
+          url: data.video_url || data.thumbnail_url || '',
+          thumbnailUrl: data.thumbnail_url || data.video_url || '',
+          timestamp: Date.now(),
+          isNsfw: data.is_nsfw || false,
+          modelUsed: data.model_used,
+          provider: data.provider,
+        });
+        toast.success(`AI video generated with ${data.model_used || 'AI'}!`);
       }
-
-      setTargetFps(data.target_fps || 3);
-
-      addGalleryItem({
-        id: crypto.randomUUID(),
-        type: 'video',
-        prompt: videoSettings.prompt,
-        settings: { ...videoSettings },
-        url: data.thumbnail_url,
-        thumbnailUrl: data.thumbnail_url,
-        timestamp: Date.now(),
-        isNsfw: data.is_nsfw || false,
-        modelUsed: data.model_used,
-        provider: data.provider,
-      });
-
-      toast.success(`Video frames generated with ${data.model_used || 'AI'} (${data.frame_count} frames)! Click "Export as Video" to download.`);
     } catch (err: any) {
       toast.error(err.message || 'Video generation failed.');
     } finally {
-      setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
+      if (isMotion) {
+        // Don't clear progress yet - encoding will happen after
+      } else {
+        setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
+      }
     }
-  }, [videoSettings, safetySettings, setVideoProgress, setGeneratedVideo, addGalleryItem, addSafetyLog]);
+  }, [videoSettings, safetySettings, setVideoProgress, setGeneratedVideo, setGeneratedVideoUrl, addGalleryItem, addSafetyLog, videoBlobUrl]);
 
-  const handleExportVideo = useCallback(async () => {
-    if (videoFrames.length === 0) return;
-    setIsEncoding(true);
-    try {
-      const videoUrl = await encodeFramesToVideo(
-        videoFrames,
-        videoSettings.width,
-        videoSettings.height,
-        videoSettings.fps,
-      );
-      setGeneratedVideoUrl(videoUrl);
-      toast.success('Video encoded! Click download to save the video file.');
-    } catch (err: any) {
-      toast.error('Video encoding failed: ' + err.message);
-    } finally {
-      setIsEncoding(false);
-    }
-  }, [videoFrames, videoSettings.width, videoSettings.height, videoSettings.fps, setGeneratedVideoUrl]);
-
+  const hasVideo = !!(videoBlobUrl || generatedVideoUrl || generatedVideo);
+  const isMotion = videoSettings.videoMode === 'motion';
   const selectedVideoModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
-  const hasVideo = videoFrames.length > 0;
+  const selectedMotionModel = MOTION_SOURCE_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
+  const currentVideoUrl = videoBlobUrl || generatedVideoUrl;
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -769,13 +838,94 @@ function VideoGenPanel() {
           <h2 className="text-2xl font-bold">Video Generation</h2>
           <p className="text-sm text-zinc-500">Create AI videos for Reels, YouTube, TikTok & more</p>
         </div>
-        <Badge className="ml-auto bg-emerald-600/20 text-emerald-300 border-0">
-          <Globe className="w-3 h-3 mr-1" /> Free
+        <Badge className={`ml-auto border-0 ${isMotion ? 'bg-emerald-600/20 text-emerald-300' : 'bg-purple-600/20 text-purple-300'}`}>
+          {isMotion ? <><Globe className="w-3 h-3 mr-1" /> Free</> : <><Key className="w-3 h-3 mr-1" /> AI</>}
         </Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
+          {/* Video Mode Selector */}
+          <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+            <CardContent className="p-4">
+              <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
+                <Video className="w-4 h-4 text-amber-400" /> Video Mode
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => updateVideoSettings({ videoMode: 'real', modelId: VIDEO_MODEL_OPTIONS[0].id })}
+                  className={`text-left p-3 rounded-lg border transition-all duration-150
+                    ${videoSettings.videoMode === 'real'
+                      ? 'bg-purple-600/20 border-purple-500/50 shadow-lg shadow-purple-500/10'
+                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Bolt className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-medium text-zinc-200">AI Video</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500">Real AI-generated video (requires API key)</p>
+                </button>
+                <button
+                  onClick={() => updateVideoSettings({ videoMode: 'motion', modelId: MOTION_SOURCE_MODEL_OPTIONS[0].id })}
+                  className={`text-left p-3 rounded-lg border transition-all duration-150
+                    ${videoSettings.videoMode === 'motion'
+                      ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Globe className="w-4 h-4 text-emerald-400" />
+                    <span className="text-sm font-medium text-zinc-200">Motion Video</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500">FREE! Ken Burns effects on AI image</p>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* API Key Field (only for real mode) */}
+          {videoSettings.videoMode === 'real' && (
+            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+              <CardContent className="p-4">
+                <Label className="text-zinc-300 mb-2 block text-sm font-semibold flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-purple-400" /> Pollinations API Key
+                </Label>
+                <div className="relative">
+                  <Input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={videoSettings.pollinationsApiKey}
+                    onChange={(e) => updateVideoSettings({ pollinationsApiKey: e.target.value })}
+                    placeholder="Enter your Pollinations API key..."
+                    className="bg-zinc-800/50 border-zinc-700 pr-10"
+                  />
+                  <button
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <a
+                  href="https://enter.pollinations.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-purple-400 hover:text-purple-300 mt-2 inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" /> Get free key at enter.pollinations.ai
+                </a>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No API key warning for real mode */}
+          {videoSettings.videoMode === 'real' && !videoSettings.pollinationsApiKey.trim() && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-600/10 border border-amber-600/30">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <p className="text-xs text-amber-300">API key required for AI Video mode. <a href="https://enter.pollinations.ai" target="_blank" rel="noopener noreferrer" className="underline">Get a free key</a></p>
+            </div>
+          )}
+
           {/* Social Media Preset */}
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
@@ -804,35 +954,97 @@ function VideoGenPanel() {
             </CardContent>
           </Card>
 
-          {/* Video Model Selector */}
-          <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-            <CardContent className="p-4">
-              <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
-                <Video className="w-4 h-4 text-amber-400" /> Video Model
-              </Label>
-              <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                {VIDEO_MODEL_OPTIONS.map((model) => (
-                  <button
-                    key={model.id}
-                    onClick={() => updateVideoSettings({ modelId: model.id })}
-                    className={`text-left p-2.5 rounded-lg border transition-all duration-150
-                      ${videoSettings.modelId === model.id
-                        ? 'bg-amber-600/20 border-amber-500/50 shadow-lg shadow-amber-500/10'
-                        : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-zinc-200">{model.name}</span>
-                      <Badge className={`text-[9px] px-1.5 py-0 ${BADGE_COLORS[model.badge] || 'bg-zinc-600/30 text-zinc-300'}`}>
-                        {model.badge}
-                      </Badge>
-                    </div>
-                    <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Model Selector — different for real vs motion */}
+          {videoSettings.videoMode === 'real' ? (
+            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+              <CardContent className="p-4">
+                <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
+                  <Video className="w-4 h-4 text-purple-400" /> AI Video Model
+                </Label>
+                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
+                  {VIDEO_MODEL_OPTIONS.map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => updateVideoSettings({ modelId: model.id })}
+                      className={`text-left p-2.5 rounded-lg border transition-all duration-150
+                        ${videoSettings.modelId === model.id
+                          ? 'bg-purple-600/20 border-purple-500/50 shadow-lg shadow-purple-500/10'
+                          : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-zinc-200">{model.name}</span>
+                        <Badge className={`text-[9px] px-1.5 py-0 ${BADGE_COLORS[model.badge] || 'bg-zinc-600/30 text-zinc-300'}`}>
+                          {model.badge}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Motion Source Image Model */}
+              <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+                <CardContent className="p-4">
+                  <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
+                    <Paintbrush className="w-4 h-4 text-emerald-400" /> Source Image Model
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
+                    {MOTION_SOURCE_MODEL_OPTIONS.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => updateVideoSettings({ modelId: model.id })}
+                        className={`text-left p-2.5 rounded-lg border transition-all duration-150
+                          ${videoSettings.modelId === model.id
+                            ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                            : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-zinc-200">{model.name}</span>
+                          <Badge className={`text-[9px] px-1.5 py-0 ${BADGE_COLORS[model.badge] || 'bg-zinc-600/30 text-zinc-300'}`}>
+                            {model.badge}
+                          </Badge>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Motion Effect Selector */}
+              <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+                <CardContent className="p-4">
+                  <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-amber-400" /> Motion Effect
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {MOTION_EFFECT_OPTIONS.map((effect) => (
+                      <button
+                        key={effect.id}
+                        onClick={() => updateVideoSettings({ motionEffect: effect.id })}
+                        className={`text-left p-2 rounded-lg border transition-all duration-150
+                          ${videoSettings.motionEffect === effect.id
+                            ? 'bg-amber-600/20 border-amber-500/50 shadow-lg shadow-amber-500/10'
+                            : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                          }`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-sm">{effect.icon}</span>
+                          <span className="text-xs font-medium text-zinc-200">{effect.name}</span>
+                        </div>
+                        <p className="text-[9px] text-zinc-500">{effect.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-5 space-y-5">
@@ -877,25 +1089,34 @@ function VideoGenPanel() {
 
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5" />
-                {Math.min(Math.max(Math.ceil(videoSettings.duration * videoSettings.fps), 4), 8)} cinematic frames at {videoSettings.width}x{videoSettings.height} ({selectedPreset?.aspect || 'Custom'})
+                {isMotion
+                  ? `${videoSettings.duration}s motion video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · ${videoSettings.motionEffect}`
+                  : `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'})`
+                }
               </div>
 
               <Button
                 onClick={handleGenerate}
-                disabled={videoProgress.isGenerating}
-                className="w-full bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white font-semibold h-12 text-base shadow-lg shadow-amber-500/20"
+                disabled={videoProgress.isGenerating || isEncoding}
+                className={`w-full text-white font-semibold h-12 text-base shadow-lg ${
+                  isMotion
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20'
+                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-500/20'
+                }`}
               >
-                {videoProgress.isGenerating ? (
-                  <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message}</>
+                {videoProgress.isGenerating || isEncoding ? (
+                  <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message || 'Encoding...'}</>
                 ) : (
-                  <><Film className="w-5 h-5 mr-2" /> Generate Video</>
+                  <><Film className="w-5 h-5 mr-2" /> {isMotion ? 'Generate Motion Video' : 'Generate AI Video'}</>
                 )}
               </Button>
 
-              {videoProgress.isGenerating && (
+              {(videoProgress.isGenerating || isEncoding) && (
                 <div className="space-y-2">
-                  <Progress value={50} className="h-2 animate-pulse" />
-                  <p className="text-xs text-zinc-500 text-center">Generating frames... 30-90 seconds</p>
+                  <Progress value={isEncoding ? 75 : 50} className="h-2 animate-pulse" />
+                  <p className="text-xs text-zinc-500 text-center">
+                    {isEncoding ? 'Encoding motion video...' : isMotion ? 'Generating source image... 10-30 seconds' : 'Generating AI video... 30-120 seconds'}
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -907,73 +1128,81 @@ function VideoGenPanel() {
             <CardHeader>
               <CardTitle className="text-zinc-300 text-sm flex items-center gap-2">
                 <Video className="w-4 h-4" /> Video Preview
-                {selectedVideoModel && (
-                  <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">{selectedVideoModel.name}</Badge>
-                )}
+                {isMotion ? (
+                  <Badge className="text-[9px] bg-emerald-600/20 text-emerald-300 border-0 ml-auto">{videoSettings.motionEffect}</Badge>
+                ) : selectedVideoModel ? (
+                  <Badge className="text-[9px] bg-purple-600/20 text-purple-300 border-0 ml-auto">{selectedVideoModel.name}</Badge>
+                ) : null}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className={`rounded-xl bg-zinc-800/30 border border-zinc-800 flex items-center justify-center overflow-hidden ${
                 videoSettings.height > videoSettings.width ? 'aspect-[9/16]' : 'aspect-video'
               }`}>
-                {hasVideo ? (
-                  <VideoPlayer frames={videoFrames} targetFps={targetFps} />
+                {currentVideoUrl ? (
+                  <video
+                    ref={videoRef}
+                    src={currentVideoUrl}
+                    className="w-full h-full object-contain"
+                    autoPlay
+                    loop
+                    playsInline
+                    controls
+                  />
+                ) : isEncoding && sourceImage ? (
+                  <div className="text-center text-zinc-500 p-4">
+                    <ImageWithLoader src={sourceImage} />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                      <div className="text-center">
+                        <RefreshCw className="w-10 h-10 mx-auto mb-2 animate-spin text-amber-400" />
+                        <p className="text-sm text-zinc-200">Encoding motion video...</p>
+                        <p className="text-xs mt-1 text-zinc-400">{videoSettings.motionEffect} effect</p>
+                      </div>
+                    </div>
+                  </div>
                 ) : videoProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
                     <p className="text-sm">Generating your video...</p>
-                    <p className="text-xs mt-1 text-zinc-600">Creating cinematic frames, 30-90 seconds</p>
+                    <p className="text-xs mt-1 text-zinc-600">
+                      {isMotion ? 'Creating source image, 10-30 seconds' : 'Creating AI video, 30-120 seconds'}
+                    </p>
                   </div>
                 ) : (
                   <div className="text-center text-zinc-600">
                     <Film className="w-12 h-12 mx-auto mb-2 opacity-30" />
                     <p className="text-sm">Your video will appear here</p>
-                    <p className="text-xs mt-1 text-zinc-700">Select a platform and enter a prompt</p>
+                    <p className="text-xs mt-1 text-zinc-700">Select a mode and enter a prompt</p>
                   </div>
                 )}
               </div>
 
-              {hasVideo && (
+              {currentVideoUrl && (
                 <div className="space-y-3 mt-4">
-                  {/* Export as Video button */}
                   <Button
-                    onClick={handleExportVideo}
-                    disabled={isEncoding}
-                    className="w-full bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 text-white font-semibold h-11 shadow-lg shadow-pink-500/20"
-                  >
-                    {isEncoding ? (
-                      <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Encoding video...</>
-                    ) : (
-                      <><Video className="w-4 h-4 mr-2" /> Export as Video (WebM)</>
-                    )}
-                  </Button>
-
-                  {/* Download video if encoded */}
-                  {generatedVideoUrl && (
-                    <Button
-                      variant="outline"
-                      className="w-full border-emerald-700 text-emerald-300 hover:bg-emerald-600/20"
-                      onClick={() => {
-                        const a = document.createElement('a');
-                        a.href = generatedVideoUrl;
-                        a.download = `neuralforge-video-${Date.now()}.webm`;
-                        a.click();
-                      }}
-                    >
-                      <Download className="w-4 h-4 mr-2" /> Download Video File
-                    </Button>
-                  )}
-
-                  {/* Download first frame as image */}
-                  <Button variant="outline" className="w-full border-zinc-700"
+                    variant="outline"
+                    className="w-full border-emerald-700 text-emerald-300 hover:bg-emerald-600/20"
                     onClick={() => {
                       const a = document.createElement('a');
-                      a.href = videoFrames[0];
-                      a.download = `neuralforge-frame-${Date.now()}.png`;
+                      a.href = currentVideoUrl;
+                      a.download = `neuralforge-video-${Date.now()}.${isMotion ? 'webm' : 'mp4'}`;
                       a.click();
-                    }}>
-                    <Download className="w-4 h-4 mr-2" /> Download Frame as Image
+                    }}
+                  >
+                    <Download className="w-4 h-4 mr-2" /> Download Video ({isMotion ? 'WebM' : 'MP4'})
                   </Button>
+
+                  {sourceImage && isMotion && (
+                    <Button variant="outline" className="w-full border-zinc-700"
+                      onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = sourceImage;
+                        a.download = `neuralforge-source-${Date.now()}.png`;
+                        a.click();
+                      }}>
+                      <Download className="w-4 h-4 mr-2" /> Download Source Image
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -982,13 +1211,26 @@ function VideoGenPanel() {
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
               <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-400" /> How It Works
+                <Star className="w-4 h-4 text-amber-400" /> {isMotion ? 'Motion Video' : 'AI Video'}
               </h3>
               <div className="space-y-2 text-xs text-zinc-500">
-                <p><strong className="text-amber-300">1. Generate Frames</strong> — AI creates multiple cinematic keyframes showing your scene from different angles and moments</p>
-                <p><strong className="text-pink-300">2. Preview Animation</strong> — Frames play automatically as an animated preview</p>
-                <p><strong className="text-violet-300">3. Export Video</strong> — Click &quot;Export as Video&quot; to encode frames into a downloadable WebM video file</p>
-                <p><strong className="text-emerald-300">4. Download</strong> — Save the video and use it for your Reels, TikTok, YouTube Shorts, and more!</p>
+                {isMotion ? (
+                  <>
+                    <p><strong className="text-emerald-300">Free &amp; No API Key</strong> — Generates a high-quality AI image, then applies cinematic motion effects (Ken Burns, zoom, pan) to create smooth video</p>
+                    <p><strong className="text-amber-300">Ken Burns</strong> — Classic cinematic zoom + slight pan, great for landscapes</p>
+                    <p><strong className="text-pink-300">Zoom In/Out</strong> — Dramatic zoom for reveal or focus effects</p>
+                    <p><strong className="text-violet-300">Pan Left/Right</strong> — Smooth horizontal motion across the scene</p>
+                    <p><strong className="text-cyan-300">Drift</strong> — Gentle floating motion, perfect for dreamy scenes</p>
+                  </>
+                ) : (
+                  <>
+                    <p><strong className="text-purple-300">Real AI Video</strong> — Uses Pollinations.ai models to generate actual AI video from your prompt</p>
+                    <p><strong className="text-emerald-300">Free API Key</strong> — Get a free key at <a href="https://enter.pollinations.ai" target="_blank" rel="noopener noreferrer" className="underline text-purple-400">enter.pollinations.ai</a></p>
+                    <p><strong className="text-amber-300">LTX Video 2.3</strong> — Fast 5s generation, great quality</p>
+                    <p><strong className="text-pink-300">Veo 3.1</strong> — Google Veo with audio output</p>
+                    <p><strong className="text-violet-300">Nova Reel</strong> — 6-120s professional video</p>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
