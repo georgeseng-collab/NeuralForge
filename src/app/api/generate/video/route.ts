@@ -33,15 +33,7 @@ export async function POST(request: NextRequest) {
     const stylePrefix = styleMap[style] || styleMap['Photorealistic'];
     const enhancedPrompt = `${prompt}, ${stylePrefix}, cinematic frame, movie still`;
 
-    const result = await generateImage(enhancedPrompt, '1344x768');
-
-    const imageBase64 = result.data[0]?.base64;
-
-    if (!imageBase64) {
-      throw new Error('No image data returned from AI engine');
-    }
-
-    const imageUrl = `data:image/png;base64,${imageBase64}`;
+    const { imageUrl, isReal } = await generateImage(enhancedPrompt, '1344x768', style, 1344, 768);
 
     return NextResponse.json({
       video_url: imageUrl,
@@ -50,14 +42,13 @@ export async function POST(request: NextRequest) {
       prompt: enhancedPrompt,
       duration,
       fps,
-      note: 'Video keyframe generated. Full video animation requires local backend with GPU.',
+      is_real_generation: isReal,
+      mode: isReal ? 'ai-generated' : 'demo-preview',
     });
   } catch (error: any) {
     console.error('Video generation error:', error);
     return NextResponse.json(
-      {
-        detail: error.message || 'Video generation failed. Please try again.',
-      },
+      { detail: error.message || 'Video generation failed.' },
       { status: 500 }
     );
   }

@@ -35,35 +35,27 @@ export async function POST(request: NextRequest) {
     const stylePrefix = styleMap[style] || styleMap['Photorealistic'];
     const enhancedPrompt = `${prompt}, ${stylePrefix}${negativePrompt ? `, NOT ${negativePrompt}` : ''}`;
 
-    // Determine image size (z-ai supported sizes)
+    // Determine image size
     let size = '1024x1024';
     if (width <= 512 && height <= 512) size = '1024x1024';
     else if (height > width) size = '768x1344';
     else if (width > height) size = '1344x768';
     else if (width >= 1024) size = '1024x1024';
 
-    const result = await generateImage(enhancedPrompt, size);
-
-    const imageBase64 = result.data[0]?.base64;
-
-    if (!imageBase64) {
-      throw new Error('No image data returned from AI engine');
-    }
-
-    const imageUrl = `data:image/png;base64,${imageBase64}`;
+    const { imageUrl, isReal } = await generateImage(enhancedPrompt, size, style, width, height);
 
     return NextResponse.json({
       image_url: imageUrl,
       is_nsfw: false,
       prompt: enhancedPrompt,
       settings: { width, height, style, seed },
+      is_real_generation: isReal,
+      mode: isReal ? 'ai-generated' : 'demo-preview',
     });
   } catch (error: any) {
     console.error('Image generation error:', error);
     return NextResponse.json(
-      {
-        detail: error.message || 'Image generation failed. Please try again.',
-      },
+      { detail: error.message || 'Image generation failed.' },
       { status: 500 }
     );
   }
