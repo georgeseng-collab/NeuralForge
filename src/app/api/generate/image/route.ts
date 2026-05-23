@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateImage } from '@/lib/ai';
 
+// Vercel serverless function can run up to 60s on hobby plan
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -51,7 +54,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Image generation error:', error);
     return NextResponse.json(
-      { detail: error.message || 'Image generation failed.' },
+      { detail: error.message || 'Image generation failed. Please try again with a simpler prompt.' },
       { status: 500 }
     );
   }

@@ -438,12 +438,14 @@ function ImageGenPanel() {
                     src={generatedImage}
                     alt="Generated"
                     className="w-full h-full object-contain"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      target.parentElement!.innerHTML = '<div class="text-center text-zinc-600 p-4"><p class="text-sm">Image failed to load</p><p class="text-xs mt-1">Try a different model or prompt</p></div>';
-                    }}
+                    loading="eager"
                   />
+                ) : imageProgress.isGenerating ? (
+                  <div className="text-center text-zinc-500 p-4">
+                    <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
+                    <p className="text-sm">Generating your image...</p>
+                    <p className="text-xs mt-1 text-zinc-600">This may take 10-30 seconds</p>
+                  </div>
                 ) : (
                   <div className="text-center text-zinc-600">
                     <Image className="w-12 h-12 mx-auto mb-2 opacity-30" />
@@ -458,15 +460,10 @@ function ImageGenPanel() {
                     variant="outline"
                     className="flex-1 border-zinc-700"
                     onClick={() => {
-                      // For Pollinations URLs, open in new tab to save
-                      if (generatedImage.startsWith('http')) {
-                        window.open(generatedImage, '_blank');
-                      } else {
-                        const a = document.createElement('a');
-                        a.href = generatedImage;
-                        a.download = `neuralforge-${Date.now()}.png`;
-                        a.click();
-                      }
+                      const a = document.createElement('a');
+                      a.href = generatedImage;
+                      a.download = `neuralforge-${Date.now()}.png`;
+                      a.click();
                     }}
                   >
                     <Download className="w-4 h-4 mr-2" /> Download
@@ -734,14 +731,10 @@ function VideoGenPanel() {
               <div className="flex gap-2 mt-4">
                 <Button variant="outline" className="flex-1 border-zinc-700"
                   onClick={() => {
-                    if (generatedVideo.startsWith('http')) {
-                      window.open(generatedVideo, '_blank');
-                    } else {
-                      const a = document.createElement('a');
-                      a.href = generatedVideo;
-                      a.download = `neuralforge-video-${Date.now()}.png`;
-                      a.click();
-                    }
+                    const a = document.createElement('a');
+                    a.href = generatedVideo;
+                    a.download = `neuralforge-video-${Date.now()}.png`;
+                    a.click();
                   }}>
                   <Download className="w-4 h-4 mr-2" /> Download
                 </Button>
@@ -833,14 +826,10 @@ function GalleryPanel() {
                 <div className="flex gap-1.5">
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 bg-white/10 hover:bg-white/20"
                     onClick={() => {
-                      if (item.url.startsWith('http')) {
-                        window.open(item.url, '_blank');
-                      } else {
-                        const a = document.createElement('a');
-                        a.href = item.url;
-                        a.download = `neuralforge-${item.id}.${item.type === 'image' ? 'png' : 'png'}`;
-                        a.click();
-                      }
+                      const a = document.createElement('a');
+                      a.href = item.url;
+                      a.download = `neuralforge-${item.id}.${item.type === 'image' ? 'png' : 'png'}`;
+                      a.click();
                     }}>
                     <Download className="w-3.5 h-3.5" />
                   </Button>

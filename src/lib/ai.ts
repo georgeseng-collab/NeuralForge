@@ -295,6 +295,25 @@ async function generateWithZAI(
   throw new Error('No image data in ZAI response');
 }
 
+// ─── Fetch image from URL and convert to base64 ─────────────────────────
+async function fetchImageAsBase64(url: string, timeout = 120000): Promise<string> {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(timeout),
+  });
+  if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+
+  const contentType = response.headers.get('content-type') || 'image/png';
+  const arrayBuffer = await response.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+  // Determine the MIME type for the data URL
+  const mime = contentType.includes('jpeg') || contentType.includes('jpg') ? 'image/jpeg'
+    : contentType.includes('webp') ? 'image/webp'
+    : 'image/png';
+
+  return `data:${mime};base64,${base64}`;
+}
+
 // ─── Main Generation Function ──────────────────────────────────────────────
 export async function generateImage(
   prompt: string,
@@ -316,22 +335,21 @@ export async function generateImage(
   try {
     switch (provider) {
       case 'pollinations': {
-        // Pollinations returns an image directly via URL
-        const pollinationsModel = modelId; // model ID is used directly
-        const imageUrl = buildPollinationsUrl(enhancedPrompt, pollinationsModel, width, height, seed || undefined);
-        
-        // Verify the URL actually returns an image by doing a HEAD request
-        // If it fails, we fall back
+        // Build the Pollinations URL
+        const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, seed || undefined);
+
+        // Fetch the actual image on the server and convert to base64
+        // This ensures the browser can always display the image
         try {
-          const check = await fetch(imageUrl, { method: 'HEAD', signal: AbortSignal.timeout(10000) });
-          if (!check.ok) throw new Error(`Pollinations returned ${check.status}`);
-        } catch {
-          // Try with default flux model as fallback
+          const base64Image = await fetchImageAsBase64(pollinationsUrl);
+          return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
+        } catch (fetchErr: any) {
+          console.log(`[NeuralForge] Model ${modelId} failed, trying flux fallback:`, fetchErr.message);
+          // Fallback to flux model
           const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
-          return { imageUrl: fallbackUrl, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
+          const base64Image = await fetchImageAsBase64(fallbackUrl);
+          return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
         }
-        
-        return { imageUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
       }
 
       case 'huggingface': {
@@ -349,10 +367,11 @@ export async function generateImage(
     }
   } catch (error: any) {
     console.error(`[NeuralForge] ${provider} generation failed:`, error.message);
-    // Fallback to Pollinations flux model
+    // Fallback to Pollinations flux model with base64
     try {
       const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
-      return { imageUrl: fallbackUrl, isReal: true, provider: 'pollinations', modelUsed: 'flux (fallback)' };
+      const base64Image = await fetchImageAsBase64(fallbackUrl);
+      return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux (fallback)' };
     } catch {
       // Ultimate fallback - generate SVG placeholder
       const placeholder = generatePlaceholderImage(prompt, style, width, height);
@@ -373,11 +392,19 @@ export async function generateVideoKeyframe(
   const enhancedPrompt = `${prompt}, ${stylePrefix}, cinematic frame, movie still, 16:9 aspect ratio`;
 
   try {
-    const imageUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, undefined);
-    return { imageUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
+    const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, undefined);
+    const base64Image = await fetchImageAsBase64(pollinationsUrl);
+    return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
   } catch (error: any) {
-    const placeholder = generatePlaceholderImage(prompt, style, width, height);
-    return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
+    console.error(`[NeuralForge] Video keyframe generation failed:`, error.message);
+    try {
+      const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, undefined);
+      const base64Image = await fetchImageAsBase64(fallbackUrl);
+      return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
+    } catch {
+      const placeholder = generatePlaceholderImage(prompt, style, width, height);
+      return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
+    }
   }
 }
 

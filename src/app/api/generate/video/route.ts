@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateVideoKeyframe } from '@/lib/ai';
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Video generation error:', error);
     return NextResponse.json(
-      { detail: error.message || 'Video generation failed.' },
+      { detail: error.message || 'Video generation failed. Please try again.' },
       { status: 500 }
     );
   }
