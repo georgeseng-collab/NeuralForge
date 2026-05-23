@@ -33,6 +33,8 @@ interface NeuralForgeStore {
   setVideoProgress: (progress: Partial<GenerationProgress>) => void;
   generatedVideo: string | null;
   setGeneratedVideo: (url: string | null) => void;
+  generatedVideoUrl: string | null;
+  setGeneratedVideoUrl: (url: string | null) => void;
 
   // Gallery
   gallery: GalleryItem[];
@@ -71,7 +73,7 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   // Image Generation
   imageSettings: {
     prompt: '',
-    negativePrompt: '',
+    negativePrompt: 'blurry, low quality, distorted, watermark, text',
     width: 1024,
     height: 1024,
     steps: 20,
@@ -99,13 +101,15 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   // Video Generation
   videoSettings: {
     prompt: '',
-    duration: 2,
-    fps: 12,
+    duration: 5,
+    fps: 3,
     width: 1344,
     height: 768,
     imageToVideo: false,
     sourceImage: null,
-    modelId: 'wan',
+    modelId: 'flux',
+    socialPreset: 'youtube-video',
+    negativePrompt: 'blurry, low quality, distorted, watermark, text',
   },
   updateVideoSettings: (settings) =>
     set((state) => ({ videoSettings: { ...state.videoSettings, ...settings } })),
@@ -122,6 +126,8 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
     set((state) => ({ videoProgress: { ...state.videoProgress, ...progress } })),
   generatedVideo: null,
   setGeneratedVideo: (url) => set({ generatedVideo: url }),
+  generatedVideoUrl: null,
+  setGeneratedVideoUrl: (url) => set({ generatedVideoUrl: url }),
 
   // Gallery
   gallery: [],

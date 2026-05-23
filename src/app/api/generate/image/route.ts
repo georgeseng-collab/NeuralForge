@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateImage } from '@/lib/ai';
 
-// Vercel serverless function can run up to 60s on hobby plan
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
@@ -24,7 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine image size string
+    // Determine image size string for Pollinations
     let size = '1024x1024';
     if (width <= 512 && height <= 512) size = '1024x1024';
     else if (height > width) size = '768x1344';
@@ -39,13 +38,14 @@ export async function POST(request: NextRequest) {
       height,
       modelId,
       seed || undefined,
+      negativePrompt,
     );
 
     return NextResponse.json({
       image_url: imageUrl,
       is_nsfw: false,
       prompt,
-      settings: { width, height, style, seed, modelId },
+      settings: { width, height, style, seed, modelId, negativePrompt },
       is_real_generation: isReal,
       mode: isReal ? 'ai-generated' : 'demo-preview',
       provider,

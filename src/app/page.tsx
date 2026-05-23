@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Film, Image, Database, Shield, Settings, Wifi, WifiOff,
@@ -8,12 +8,12 @@ import {
   RotateCcw, Check, AlertTriangle, Eye, EyeOff, Plus, X, Server,
   Monitor, HardDrive, RefreshCw, ExternalLink, Copy, Volume2,
   Palette, Layers, Clock, Box, Globe, Cloud, Star, Bolt, Moon,
-  Wand2, Paintbrush, Camera, Video
+  Wand2, Paintbrush, Camera, Video, Share2
 } from 'lucide-react';
 import { useNeuralForgeStore } from '@/lib/store';
 import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
-  IMAGE_MODEL_OPTIONS, VIDEO_MODEL_OPTIONS,
+  IMAGE_MODEL_OPTIONS, VIDEO_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
   type GalleryItem, type SafetyLogEntry,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -21,12 +21,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -34,12 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { toast } from 'sonner';
 
 // ─── Sidebar Navigation ──────────────────────────────────────────────────────
@@ -62,11 +54,102 @@ const BADGE_COLORS: Record<string, string> = {
   'Pro': 'bg-emerald-600/30 text-emerald-300',
   'Speed': 'bg-orange-600/30 text-orange-300',
   'Dark': 'bg-gray-600/30 text-gray-300',
-  'Open Source': 'bg-green-600/30 text-green-300',
-  'Video': 'bg-red-600/30 text-red-300',
   'Fun': 'bg-yellow-600/30 text-yellow-300',
   'Smart': 'bg-indigo-600/30 text-indigo-300',
 };
+
+// ─── Frame-to-Video Encoder (Client-Side) ────────────────────────────────────
+async function encodeFramesToVideo(
+  frames: string[],
+  width: number,
+  height: number,
+  fps: number = 3,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+
+      // Use MediaRecorder to create WebM video
+      const stream = canvas.captureStream(fps * 2); // Capture at higher rate for smoother encoding
+      const chunks: Blob[] = [];
+
+      // Try VP9 first (better quality), fall back to VP8, then default
+      let mimeType = 'video/webm;codecs=vp9';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+      }
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 5000000, // 5 Mbps for good quality
+      });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        resolve(url);
+      };
+
+      recorder.onerror = () => reject(new Error('Video encoding failed'));
+
+      // Load all frame images first
+      const loadFrame = (src: string): Promise<HTMLImageElement> => {
+        return new Promise((res, rej) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => res(img);
+          img.onerror = rej;
+          img.src = src;
+        });
+      };
+
+      // Start encoding
+      (async () => {
+        const images = await Promise.all(frames.map(loadFrame));
+        recorder.start();
+
+        const frameDuration = 1000 / fps; // ms per frame
+        const totalFrames = images.length;
+        // Repeat the sequence to create a looping video of reasonable length
+        const loops = Math.max(3, Math.ceil(10 / (totalFrames / fps))); // At least 10 seconds
+
+        for (let loop = 0; loop < loops; loop++) {
+          for (let i = 0; i < totalFrames; i++) {
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw frame centered (maintain aspect ratio)
+            const img = images[i];
+            const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+            const w = img.width * scale;
+            const h = img.height * scale;
+            const x = (canvas.width - w) / 2;
+            const y = (canvas.height - h) / 2;
+            ctx.drawImage(img, x, y, w, h);
+
+            // Wait for frame duration
+            await new Promise(r => setTimeout(r, frameDuration));
+          }
+        }
+
+        recorder.stop();
+      })();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
 
 // ─── Image Loader Component ─────────────────────────────────────────────────
 function ImageWithLoader({ src }: { src: string }) {
@@ -114,7 +197,6 @@ export default function Home() {
     connectionStatus,
   } = useNeuralForgeStore();
 
-  // Check backend connection on mount
   useEffect(() => {
     const checkBackend = async () => {
       try {
@@ -142,13 +224,11 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
-      {/* ─── Sidebar ──────────────────────────────────────────── */}
       <motion.aside
         initial={{ x: -80 }}
         animate={{ x: 0 }}
         className="w-20 lg:w-64 bg-zinc-900/80 backdrop-blur-xl border-r border-zinc-800 flex flex-col shrink-0"
       >
-        {/* Logo */}
         <div className="p-4 lg:p-6 border-b border-zinc-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-amber-500 flex items-center justify-center shrink-0">
@@ -161,7 +241,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 p-2 lg:p-3 space-y-1">
           {NAV_ITEMS.map((item) => (
             <button
@@ -182,7 +261,6 @@ export default function Home() {
           ))}
         </nav>
 
-        {/* Connection Status */}
         <div className="p-3 lg:p-4 border-t border-zinc-800">
           <div className="flex items-center gap-2">
             {connectionStatus.backendConnected ? (
@@ -194,12 +272,6 @@ export default function Home() {
               {connectionStatus.backendConnected ? 'Cloud AI Connected' : 'Offline'}
             </span>
           </div>
-          {connectionStatus.gpuAvailable && (
-            <div className="flex items-center gap-2 mt-1.5">
-              <Cpu className="w-3.5 h-3.5 text-violet-400" />
-              <span className="text-[10px] text-zinc-500 hidden lg:inline">{connectionStatus.gpuName}</span>
-            </div>
-          )}
           <div className="flex items-center gap-2 mt-1.5">
             <Globe className="w-3.5 h-3.5 text-emerald-400" />
             <span className="text-[10px] text-zinc-500 hidden lg:inline">Free · No API Key</span>
@@ -207,7 +279,6 @@ export default function Home() {
         </div>
       </motion.aside>
 
-      {/* ─── Main Content ──────────────────────────────────────── */}
       <main className="flex-1 overflow-auto">
         <AnimatePresence mode="wait">
           <motion.div
@@ -240,7 +311,6 @@ function ImageGenPanel() {
       toast.error('Please enter a prompt');
       return;
     }
-    // Safety check
     if (safetySettings.contentFilterEnabled) {
       const lower = imageSettings.prompt.toLowerCase();
       const blocked = safetySettings.blockedPrompts.find(p => lower.includes(p.toLowerCase()));
@@ -288,7 +358,7 @@ function ImageGenPanel() {
       });
       toast.success(`Image generated with ${data.model_used || 'AI'}!`);
     } catch (err: any) {
-      toast.error(err.message || 'Generation failed. Is the backend running?');
+      toast.error(err.message || 'Generation failed.');
     } finally {
       setImageProgress({ isGenerating: false, currentStep: 0, message: '' });
     }
@@ -312,9 +382,7 @@ function ImageGenPanel() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Settings */}
         <div className="space-y-4">
-          {/* Model Selector */}
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
               <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
@@ -350,30 +418,26 @@ function ImageGenPanel() {
 
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-5 space-y-5">
-              {/* Prompt */}
               <div className="space-y-2">
                 <Label className="text-zinc-300">Prompt</Label>
                 <Textarea
                   value={imageSettings.prompt}
                   onChange={(e) => updateImageSettings({ prompt: e.target.value })}
-                  placeholder="A cyberpunk city at sunset, neon lights reflecting on wet streets..."
+                  placeholder="A cyberpunk city at sunset, neon lights reflecting on wet streets, ultra detailed, 8k..."
                   className="bg-zinc-800/50 border-zinc-700 text-zinc-100 placeholder:text-zinc-600 min-h-[100px] resize-none"
                 />
-                <p className="text-xs text-zinc-600">{imageSettings.prompt.length} characters</p>
               </div>
 
-              {/* Negative Prompt */}
               <div className="space-y-2">
                 <Label className="text-zinc-300">Negative Prompt</Label>
                 <Textarea
                   value={imageSettings.negativePrompt}
                   onChange={(e) => updateImageSettings({ negativePrompt: e.target.value })}
-                  placeholder="blurry, low quality, distorted, watermark..."
+                  placeholder="blurry, low quality, distorted, watermark, text..."
                   className="bg-zinc-800/50 border-zinc-700 text-zinc-100 placeholder:text-zinc-600 min-h-[60px] resize-none"
                 />
               </div>
 
-              {/* Style */}
               <div className="space-y-2">
                 <Label className="text-zinc-300">Style</Label>
                 <Select value={imageSettings.style} onValueChange={(v) => updateImageSettings({ style: v })}>
@@ -388,7 +452,6 @@ function ImageGenPanel() {
                 </Select>
               </div>
 
-              {/* Resolution */}
               <div className="space-y-2">
                 <Label className="text-zinc-300">Resolution</Label>
                 <Select
@@ -409,15 +472,11 @@ function ImageGenPanel() {
                 </Select>
               </div>
 
-              {/* Seed */}
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <Label className="text-zinc-300">Seed</Label>
-                  <Button
-                    variant="ghost" size="sm"
-                    className="h-6 text-xs text-zinc-500"
-                    onClick={() => updateImageSettings({ seed: Math.floor(Math.random() * 2147483647) })}
-                  >
+                  <Button variant="ghost" size="sm" className="h-6 text-xs text-zinc-500"
+                    onClick={() => updateImageSettings({ seed: Math.floor(Math.random() * 2147483647) })}>
                     <RotateCcw className="w-3 h-3 mr-1" /> Random
                   </Button>
                 </div>
@@ -430,46 +489,35 @@ function ImageGenPanel() {
                 />
               </div>
 
-              {/* Generate Button */}
               <Button
                 onClick={handleGenerate}
                 disabled={imageProgress.isGenerating}
                 className="w-full bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 text-white font-semibold h-12 text-base shadow-lg shadow-violet-500/20"
               >
                 {imageProgress.isGenerating ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> Generating with {selectedModel?.name || 'AI'}...
-                  </>
+                  <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> Generating with {selectedModel?.name || 'AI'}...</>
                 ) : (
-                  <>
-                    <Zap className="w-5 h-5 mr-2" /> Generate with {selectedModel?.name || 'AI'}
-                  </>
+                  <><Zap className="w-5 h-5 mr-2" /> Generate with {selectedModel?.name || 'AI'}</>
                 )}
               </Button>
 
-              {/* Progress */}
               {imageProgress.isGenerating && (
                 <div className="space-y-2">
                   <Progress value={50} className="h-2 animate-pulse" />
-                  <p className="text-xs text-zinc-500 text-center">
-                    {imageProgress.message}
-                  </p>
+                  <p className="text-xs text-zinc-500 text-center">{imageProgress.message}</p>
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Right: Preview */}
         <div className="space-y-4">
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardHeader>
               <CardTitle className="text-zinc-300 text-sm flex items-center gap-2">
                 <Camera className="w-4 h-4" /> Preview
                 {selectedModel && (
-                  <Badge className="text-[9px] bg-violet-600/20 text-violet-300 border-0 ml-auto">
-                    {selectedModel.name}
-                  </Badge>
+                  <Badge className="text-[9px] bg-violet-600/20 text-violet-300 border-0 ml-auto">{selectedModel.name}</Badge>
                 )}
               </CardTitle>
             </CardHeader>
@@ -487,32 +535,22 @@ function ImageGenPanel() {
                   <div className="text-center text-zinc-600">
                     <Image className="w-12 h-12 mx-auto mb-2 opacity-30" />
                     <p className="text-sm">Generated image will appear here</p>
-                    <p className="text-xs mt-1 text-zinc-700">Select a model and enter a prompt to start</p>
                   </div>
                 )}
               </div>
               {generatedImage && (
                 <div className="flex gap-2 mt-4">
-                  <Button
-                    variant="outline"
-                    className="flex-1 border-zinc-700"
+                  <Button variant="outline" className="flex-1 border-zinc-700"
                     onClick={() => {
                       const a = document.createElement('a');
                       a.href = generatedImage;
                       a.download = `neuralforge-${Date.now()}.png`;
                       a.click();
-                    }}
-                  >
-                    <Download className="w-4 h-4 mr-2" /> Download
+                    }}>
+                    <Download className="w-4 h-4 mr-2" /> Download Image
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="border-zinc-700"
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedImage);
-                      toast.success('Image URL copied!');
-                    }}
-                  >
+                  <Button variant="outline" className="border-zinc-700"
+                    onClick={() => { navigator.clipboard.writeText(generatedImage); toast.success('Copied!'); }}>
                     <Copy className="w-4 h-4" />
                   </Button>
                 </div>
@@ -520,37 +558,18 @@ function ImageGenPanel() {
             </CardContent>
           </Card>
 
-          {/* Quick Tips */}
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
               <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-400" /> Quick Tips
+                <Star className="w-4 h-4 text-amber-400" /> Tips for Better Images
               </h3>
               <div className="space-y-2 text-xs text-zinc-500">
-                <p className="flex items-start gap-2">
-                  <span className="text-violet-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Flux</strong> — Best all-rounder for any style</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-yellow-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">NanoBanana</strong> — Fun & fast creative AI</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-pink-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">GPT Image</strong> — Strong prompt understanding</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-cyan-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Flux Anime</strong> — Anime, manga & illustration</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-amber-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Grok Imagine</strong> — Witty & creative outputs</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-emerald-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">SeeDream 5</strong> — Vibrant colors & composition</span>
-                </p>
+                <p><strong className="text-violet-300">Flux</strong> — Best all-rounder, great for any style</p>
+                <p><strong className="text-yellow-300">NanoBanana</strong> — Fun & fast creative AI</p>
+                <p><strong className="text-pink-300">Flux Realism</strong> — Most photorealistic results</p>
+                <p><strong className="text-cyan-300">GPT Image</strong> — Best prompt understanding</p>
+                <p><strong className="text-amber-300">Use negative prompts</strong> — Add &quot;blurry, low quality, distorted&quot; to improve results</p>
+                <p><strong className="text-emerald-300">Be descriptive</strong> — More detail = better images</p>
               </div>
             </CardContent>
           </Card>
@@ -561,71 +580,60 @@ function ImageGenPanel() {
 }
 
 // ─── Video Player Component ──────────────────────────────────────────────────
-function VideoPlayer({ frames }: { frames: string[] }) {
+function VideoPlayer({ frames, targetFps }: { frames: string[]; targetFps: number }) {
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [loading, setLoading] = useState<Set<number>>(new Set([0]));
+  const [loadedFrames, setLoadedFrames] = useState<Set<number>>(new Set());
 
-  // Auto-advance frames for animation
+  const frameInterval = Math.round(1000 / targetFps);
+
   useEffect(() => {
     if (!isPlaying || frames.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentFrame((prev) => (prev + 1) % frames.length);
-    }, 800);
+    }, frameInterval);
     return () => clearInterval(interval);
-  }, [isPlaying, frames.length]);
+  }, [isPlaying, frames.length, frameInterval]);
 
-  // Mark frame as loaded
   const handleFrameLoad = (idx: number) => {
-    setLoading(prev => {
+    setLoadedFrames(prev => {
       const next = new Set(prev);
-      next.delete(idx);
+      next.add(idx);
       return next;
     });
   };
 
-  // Single frame - just show it
   if (frames.length === 1) {
     return <ImageWithLoader src={frames[0]} />;
   }
 
-  // Multiple frames - animate with player controls
   return (
     <div className="w-full h-full relative">
-      {/* Render all frames, show only current */}
       {frames.map((frame, i) => (
         <img
           key={i}
           src={frame}
           alt={`Frame ${i + 1}`}
-          className={`w-full h-full object-contain absolute inset-0 transition-opacity duration-300 ${i === currentFrame ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+          className={`w-full h-full object-contain absolute inset-0 transition-opacity duration-200 ${i === currentFrame ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
           onLoad={() => handleFrameLoad(i)}
           onError={() => handleFrameLoad(i)}
         />
       ))}
 
-      {/* Loading indicator */}
-      {loading.has(currentFrame) && frames.length > 0 && (
+      {!loadedFrames.has(currentFrame) && (
         <div className="absolute inset-0 flex items-center justify-center bg-zinc-800/50 z-20">
           <RefreshCw className="w-6 h-6 animate-spin text-zinc-400" />
         </div>
       )}
 
-      {/* Frame indicator / Player controls */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/70 backdrop-blur rounded-full px-3 py-1.5 z-30">
-        <button
-          onClick={() => setIsPlaying(!isPlaying)}
-          className="text-white hover:text-amber-300 transition-colors"
-        >
+        <button onClick={() => setIsPlaying(!isPlaying)} className="text-white hover:text-amber-300 transition-colors">
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
         </button>
         <div className="flex gap-1">
           {frames.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => { setCurrentFrame(i); setIsPlaying(false); }}
-              className={`w-2 h-2 rounded-full transition-all ${i === currentFrame ? 'bg-amber-400 scale-125' : 'bg-white/40 hover:bg-white/60'}`}
-            />
+            <button key={i} onClick={() => { setCurrentFrame(i); setIsPlaying(false); }}
+              className={`w-2 h-2 rounded-full transition-all ${i === currentFrame ? 'bg-amber-400 scale-125' : 'bg-white/40 hover:bg-white/60'}`} />
           ))}
         </div>
         <span className="text-[10px] text-white/60">{currentFrame + 1}/{frames.length}</span>
@@ -636,8 +644,26 @@ function VideoPlayer({ frames }: { frames: string[] }) {
 
 // ─── Video Generation Panel ──────────────────────────────────────────────────
 function VideoGenPanel() {
-  const { videoSettings, updateVideoSettings, videoProgress, setVideoProgress, generatedVideo, setGeneratedVideo, addGalleryItem, safetySettings, addSafetyLog } = useNeuralForgeStore();
+  const { videoSettings, updateVideoSettings, videoProgress, setVideoProgress, generatedVideo, setGeneratedVideo, generatedVideoUrl, setGeneratedVideoUrl, addGalleryItem, safetySettings, addSafetyLog } = useNeuralForgeStore();
   const [videoFrames, setVideoFrames] = useState<string[]>([]);
+  const [isEncoding, setIsEncoding] = useState(false);
+  const [targetFps, setTargetFps] = useState(3);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const selectedPreset = VIDEO_PRESET_OPTIONS.find(p => p.id === videoSettings.socialPreset);
+
+  const handlePresetChange = useCallback((presetId: string) => {
+    const preset = VIDEO_PRESET_OPTIONS.find(p => p.id === presetId);
+    if (preset && presetId !== 'custom') {
+      updateVideoSettings({
+        socialPreset: presetId,
+        width: preset.width,
+        height: preset.height,
+      });
+    } else {
+      updateVideoSettings({ socialPreset: presetId });
+    }
+  }, [updateVideoSettings]);
 
   const handleGenerate = useCallback(async () => {
     if (!videoSettings.prompt.trim()) {
@@ -661,9 +687,10 @@ function VideoGenPanel() {
     }
 
     const selectedModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
-    const numFrames = Math.min(Math.max(Math.ceil(videoSettings.duration / 3), 2), 4);
+    const numFrames = Math.min(Math.max(Math.ceil(videoSettings.duration * videoSettings.fps), 4), 8);
     setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: numFrames, message: `Generating ${numFrames} frames with ${selectedModel?.name || 'AI'}...` });
     setVideoFrames([]);
+    setGeneratedVideoUrl(null);
 
     try {
       const res = await fetch('/api/generate/video', {
@@ -679,31 +706,30 @@ function VideoGenPanel() {
 
       const data = await res.json();
 
-      // Set the video URL (first frame for compatibility)
-      setGeneratedVideo(data.video_url);
+      setGeneratedVideo(data.thumbnail_url);
 
-      // Set individual frames for player
       if (data.frames && data.frames.length > 0) {
         setVideoFrames(data.frames);
       } else {
-        setVideoFrames([data.video_url]);
+        setVideoFrames([data.thumbnail_url]);
       }
+
+      setTargetFps(data.target_fps || 3);
 
       addGalleryItem({
         id: crypto.randomUUID(),
         type: 'video',
         prompt: videoSettings.prompt,
         settings: { ...videoSettings },
-        url: data.video_url,
-        thumbnailUrl: data.thumbnail_url || data.video_url,
+        url: data.thumbnail_url,
+        thumbnailUrl: data.thumbnail_url,
         timestamp: Date.now(),
         isNsfw: data.is_nsfw || false,
         modelUsed: data.model_used,
         provider: data.provider,
       });
 
-      const frameCount = data.frame_count || 1;
-      toast.success(`Video generated with ${data.model_used || 'AI'} (${frameCount} frames)!`);
+      toast.success(`Video frames generated with ${data.model_used || 'AI'} (${data.frame_count} frames)! Click "Export as Video" to download.`);
     } catch (err: any) {
       toast.error(err.message || 'Video generation failed.');
     } finally {
@@ -711,8 +737,27 @@ function VideoGenPanel() {
     }
   }, [videoSettings, safetySettings, setVideoProgress, setGeneratedVideo, addGalleryItem, addSafetyLog]);
 
+  const handleExportVideo = useCallback(async () => {
+    if (videoFrames.length === 0) return;
+    setIsEncoding(true);
+    try {
+      const videoUrl = await encodeFramesToVideo(
+        videoFrames,
+        videoSettings.width,
+        videoSettings.height,
+        videoSettings.fps,
+      );
+      setGeneratedVideoUrl(videoUrl);
+      toast.success('Video encoded! Click download to save the video file.');
+    } catch (err: any) {
+      toast.error('Video encoding failed: ' + err.message);
+    } finally {
+      setIsEncoding(false);
+    }
+  }, [videoFrames, videoSettings.width, videoSettings.height, videoSettings.fps, setGeneratedVideoUrl]);
+
   const selectedVideoModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
-  const hasVideo = generatedVideo && videoFrames.length > 0;
+  const hasVideo = videoFrames.length > 0;
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -722,7 +767,7 @@ function VideoGenPanel() {
         </div>
         <div>
           <h2 className="text-2xl font-bold">Video Generation</h2>
-          <p className="text-sm text-zinc-500">Create animated AI videos — free, no API key</p>
+          <p className="text-sm text-zinc-500">Create AI videos for Reels, YouTube, TikTok & more</p>
         </div>
         <Badge className="ml-auto bg-emerald-600/20 text-emerald-300 border-0">
           <Globe className="w-3 h-3 mr-1" /> Free
@@ -731,18 +776,46 @@ function VideoGenPanel() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
+          {/* Social Media Preset */}
+          <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+            <CardContent className="p-4">
+              <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-pink-400" /> Platform / Format
+              </Label>
+              <div className="grid grid-cols-3 gap-2">
+                {VIDEO_PRESET_OPTIONS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => handlePresetChange(preset.id)}
+                    className={`text-left p-2 rounded-lg border transition-all duration-150
+                      ${videoSettings.socialPreset === preset.id
+                        ? 'bg-pink-600/20 border-pink-500/50 shadow-lg shadow-pink-500/10'
+                        : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                      }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm">{preset.icon}</span>
+                      <span className="text-xs font-medium text-zinc-200 truncate">{preset.name}</span>
+                    </div>
+                    <p className="text-[9px] text-zinc-500">{preset.aspect} · {preset.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Video Model Selector */}
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
               <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
                 <Video className="w-4 h-4 text-amber-400" /> Video Model
               </Label>
-              <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
                 {VIDEO_MODEL_OPTIONS.map((model) => (
                   <button
                     key={model.id}
                     onClick={() => updateVideoSettings({ modelId: model.id })}
-                    className={`text-left p-2.5 rounded-lg border transition-all duration-150 group
+                    className={`text-left p-2.5 rounded-lg border transition-all duration-150
                       ${videoSettings.modelId === model.id
                         ? 'bg-amber-600/20 border-amber-500/50 shadow-lg shadow-amber-500/10'
                         : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
@@ -755,10 +828,6 @@ function VideoGenPanel() {
                       </Badge>
                     </div>
                     <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <Bolt className="w-2.5 h-2.5 text-amber-400" />
-                      <span className="text-[9px] text-zinc-500">{model.speed}</span>
-                    </div>
                   </button>
                 ))}
               </div>
@@ -772,10 +841,9 @@ function VideoGenPanel() {
                 <Textarea
                   value={videoSettings.prompt}
                   onChange={(e) => updateVideoSettings({ prompt: e.target.value })}
-                  placeholder="A cinematic shot of a cat and dog playing in a sunset garden, dramatic lighting..."
+                  placeholder="A cinematic shot of waves crashing on a tropical beach at sunset, drone camera moving forward..."
                   className="bg-zinc-800/50 border-zinc-700 text-zinc-100 placeholder:text-zinc-600 min-h-[100px] resize-none"
                 />
-                <p className="text-xs text-zinc-600">{videoSettings.prompt.length} characters</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -792,9 +860,8 @@ function VideoGenPanel() {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
-                  <Label className="text-zinc-300">FPS</Label>
+                  <Label className="text-zinc-300">Frame Rate</Label>
                   <Select value={`${videoSettings.fps}`} onValueChange={(v) => updateVideoSettings({ fps: Number(v) })}>
                     <SelectTrigger className="bg-zinc-800/50 border-zinc-700">
                       <SelectValue />
@@ -810,7 +877,7 @@ function VideoGenPanel() {
 
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5" />
-                Generates an animated video with {Math.min(Math.max(Math.ceil(videoSettings.duration / 3), 2), 4)} cinematic frames
+                {Math.min(Math.max(Math.ceil(videoSettings.duration * videoSettings.fps), 4), 8)} cinematic frames at {videoSettings.width}x{videoSettings.height} ({selectedPreset?.aspect || 'Custom'})
               </div>
 
               <Button
@@ -819,22 +886,16 @@ function VideoGenPanel() {
                 className="w-full bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white font-semibold h-12 text-base shadow-lg shadow-amber-500/20"
               >
                 {videoProgress.isGenerating ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message}
-                  </>
+                  <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message}</>
                 ) : (
-                  <>
-                    <Film className="w-5 h-5 mr-2" /> Generate Video with {selectedVideoModel?.name || 'AI'}
-                  </>
+                  <><Film className="w-5 h-5 mr-2" /> Generate Video</>
                 )}
               </Button>
 
               {videoProgress.isGenerating && (
                 <div className="space-y-2">
                   <Progress value={50} className="h-2 animate-pulse" />
-                  <p className="text-xs text-zinc-500 text-center">
-                    Generating multiple frames... This may take 30-90 seconds
-                  </p>
+                  <p className="text-xs text-zinc-500 text-center">Generating frames... 30-90 seconds</p>
                 </div>
               )}
             </CardContent>
@@ -842,89 +903,92 @@ function VideoGenPanel() {
         </div>
 
         <div className="space-y-4">
-          {/* Video Preview */}
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardHeader>
               <CardTitle className="text-zinc-300 text-sm flex items-center gap-2">
                 <Video className="w-4 h-4" /> Video Preview
                 {selectedVideoModel && (
-                  <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">
-                    {selectedVideoModel.name}
-                  </Badge>
+                  <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">{selectedVideoModel.name}</Badge>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="aspect-video rounded-xl bg-zinc-800/30 border border-zinc-800 flex items-center justify-center overflow-hidden">
+              <div className={`rounded-xl bg-zinc-800/30 border border-zinc-800 flex items-center justify-center overflow-hidden ${
+                videoSettings.height > videoSettings.width ? 'aspect-[9/16]' : 'aspect-video'
+              }`}>
                 {hasVideo ? (
-                  <VideoPlayer frames={videoFrames} />
+                  <VideoPlayer frames={videoFrames} targetFps={targetFps} />
                 ) : videoProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
                     <p className="text-sm">Generating your video...</p>
-                    <p className="text-xs mt-1 text-zinc-600">Creating multiple frames, this may take 30-90 seconds</p>
+                    <p className="text-xs mt-1 text-zinc-600">Creating cinematic frames, 30-90 seconds</p>
                   </div>
                 ) : (
                   <div className="text-center text-zinc-600">
                     <Film className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">Your animated video will appear here</p>
-                    <p className="text-xs mt-1 text-zinc-700">Select a model and enter a prompt to start</p>
+                    <p className="text-sm">Your video will appear here</p>
+                    <p className="text-xs mt-1 text-zinc-700">Select a platform and enter a prompt</p>
                   </div>
                 )}
               </div>
+
               {hasVideo && (
-                <div className="flex gap-2 mt-4">
-                  <Button variant="outline" className="flex-1 border-zinc-700"
+                <div className="space-y-3 mt-4">
+                  {/* Export as Video button */}
+                  <Button
+                    onClick={handleExportVideo}
+                    disabled={isEncoding}
+                    className="w-full bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 text-white font-semibold h-11 shadow-lg shadow-pink-500/20"
+                  >
+                    {isEncoding ? (
+                      <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Encoding video...</>
+                    ) : (
+                      <><Video className="w-4 h-4 mr-2" /> Export as Video (WebM)</>
+                    )}
+                  </Button>
+
+                  {/* Download video if encoded */}
+                  {generatedVideoUrl && (
+                    <Button
+                      variant="outline"
+                      className="w-full border-emerald-700 text-emerald-300 hover:bg-emerald-600/20"
+                      onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = generatedVideoUrl;
+                        a.download = `neuralforge-video-${Date.now()}.webm`;
+                        a.click();
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" /> Download Video File
+                    </Button>
+                  )}
+
+                  {/* Download first frame as image */}
+                  <Button variant="outline" className="w-full border-zinc-700"
                     onClick={() => {
                       const a = document.createElement('a');
-                      a.href = videoFrames[0] || generatedVideo;
-                      a.download = `neuralforge-video-${Date.now()}.png`;
+                      a.href = videoFrames[0];
+                      a.download = `neuralforge-frame-${Date.now()}.png`;
                       a.click();
                     }}>
-                    <Download className="w-4 h-4 mr-2" /> Download
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-zinc-700"
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedVideo.startsWith('data:') ? 'Video saved locally' : generatedVideo);
-                      toast.success('Copied!');
-                    }}
-                  >
-                    <Copy className="w-4 h-4" />
+                    <Download className="w-4 h-4 mr-2" /> Download Frame as Image
                   </Button>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Video Tips */}
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
               <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
                 <Star className="w-4 h-4 text-amber-400" /> How It Works
               </h3>
               <div className="space-y-2 text-xs text-zinc-500">
-                <p className="flex items-start gap-2">
-                  <span className="text-amber-400 mt-0.5">•</span>
-                  <span>NeuralForge generates <strong className="text-zinc-300">multiple cinematic frames</strong> showing different moments of your scene</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-violet-400 mt-0.5">•</span>
-                  <span>Frames are automatically <strong className="text-zinc-300">stitched into an animated GIF</strong> for smooth playback</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-cyan-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Wan Video</strong> — Best for cinematic scenes</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-emerald-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">SeeDance</strong> — Great for motion-rich content</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-pink-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Longer duration</strong> = More frames = Smoother animation</span>
-                </p>
+                <p><strong className="text-amber-300">1. Generate Frames</strong> — AI creates multiple cinematic keyframes showing your scene from different angles and moments</p>
+                <p><strong className="text-pink-300">2. Preview Animation</strong> — Frames play automatically as an animated preview</p>
+                <p><strong className="text-violet-300">3. Export Video</strong> — Click &quot;Export as Video&quot; to encode frames into a downloadable WebM video file</p>
+                <p><strong className="text-emerald-300">4. Download</strong> — Save the video and use it for your Reels, TikTok, YouTube Shorts, and more!</p>
               </div>
             </CardContent>
           </Card>
@@ -934,11 +998,11 @@ function VideoGenPanel() {
   );
 }
 
-// ─── Gallery Panel ───────────────────────────────────────────────────────────
+// ─── Gallery Panel ────────────────────────────────────────────────────────────
 function GalleryPanel() {
-  const { gallery, galleryFilter, setGalleryFilter, gallerySearch, setGallerySearch, removeGalleryItem } = useNeuralForgeStore();
+  const { gallery, removeGalleryItem, galleryFilter, setGalleryFilter, gallerySearch, setGallerySearch } = useNeuralForgeStore();
 
-  const filtered = gallery.filter((item) => {
+  const filtered = gallery.filter(item => {
     if (galleryFilter !== 'all' && item.type !== galleryFilter) return false;
     if (gallerySearch && !item.prompt.toLowerCase().includes(gallerySearch.toLowerCase())) return false;
     return true;
@@ -946,91 +1010,71 @@ function GalleryPanel() {
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
-            <Layers className="w-5 h-5 text-cyan-400" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Gallery</h2>
-            <p className="text-sm text-zinc-500">{gallery.length} generations</p>
-          </div>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
+          <Layers className="w-5 h-5 text-cyan-400" />
         </div>
+        <div>
+          <h2 className="text-2xl font-bold">Gallery</h2>
+          <p className="text-sm text-zinc-500">{gallery.length} generations</p>
+        </div>
+      </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <Input
-              value={gallerySearch}
-              onChange={(e) => setGallerySearch(e.target.value)}
-              placeholder="Search prompts..."
-              className="pl-9 bg-zinc-800/50 border-zinc-700 w-60"
-            />
-          </div>
-          <div className="flex bg-zinc-800/50 rounded-lg border border-zinc-700 p-0.5">
-            {(['all', 'image', 'video'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setGalleryFilter(f)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all
-                  ${galleryFilter === f ? 'bg-violet-600/30 text-violet-300' : 'text-zinc-400 hover:text-zinc-200'}`}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
+      <div className="flex gap-3 mb-6">
+        <div className="flex gap-1 bg-zinc-900/50 rounded-lg p-1">
+          {(['all', 'image', 'video'] as const).map((f) => (
+            <button key={f} onClick={() => setGalleryFilter(f)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all
+                ${galleryFilter === f ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}>
+              {f === 'all' ? 'All' : f === 'image' ? 'Images' : 'Videos'}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
+          <Input value={gallerySearch} onChange={(e) => setGallerySearch(e.target.value)}
+            placeholder="Search gallery..." className="bg-zinc-900/50 border-zinc-800 pl-9" />
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
-          <Layers className="w-16 h-16 mb-4 opacity-20" />
-          <p className="text-lg font-medium">No generations yet</p>
-          <p className="text-sm">Create your first image or video to see it here</p>
+        <div className="text-center text-zinc-600 py-20">
+          <Layers className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No generations yet</p>
+          <p className="text-xs mt-1 text-zinc-700">Generate images or videos to see them here</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map((item) => (
-            <motion.div
-              key={item.id}
-              layout
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="group relative"
-            >
-              <div className="aspect-square rounded-xl bg-zinc-800/30 border border-zinc-800 overflow-hidden">
-                {item.type === 'image' ? (
-                  <img src={item.url} alt={item.prompt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                ) : (
-                  <img src={item.url} alt={item.prompt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                )}
+            <div key={item.id} className="group relative rounded-xl overflow-hidden bg-zinc-900/50 border border-zinc-800">
+              <div className={`flex items-center justify-center ${item.type === 'video' ? 'aspect-video' : 'aspect-square'}`}>
+                <img src={item.thumbnailUrl} alt={item.prompt} className="w-full h-full object-cover" />
               </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex flex-col justify-end p-3">
-                <p className="text-xs text-zinc-200 line-clamp-2 mb-1">{item.prompt}</p>
-                {item.modelUsed && (
-                  <p className="text-[9px] text-violet-300 mb-2">Model: {item.modelUsed}</p>
-                )}
-                <div className="flex gap-1.5">
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 bg-white/10 hover:bg-white/20"
-                    onClick={() => {
-                      const a = document.createElement('a');
-                      a.href = item.url;
-                      a.download = `neuralforge-${item.id}.${item.type === 'image' ? 'png' : 'png'}`;
-                      a.click();
-                    }}>
-                    <Download className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 bg-white/10 hover:bg-red-500/30"
-                    onClick={() => removeGalleryItem(item.id)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute bottom-0 p-3 w-full">
+                  <p className="text-xs text-zinc-200 truncate">{item.prompt}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className="text-[8px] bg-violet-600/30 text-violet-300 border-0">{item.modelUsed}</Badge>
+                    <Badge className={`text-[8px] border-0 ${item.type === 'video' ? 'bg-amber-600/30 text-amber-300' : 'bg-cyan-600/30 text-cyan-300'}`}>{item.type}</Badge>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-zinc-400 hover:text-red-400 p-0"
+                      onClick={() => removeGalleryItem(item.id)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-zinc-400 hover:text-white p-0"
+                      onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = item.url;
+                        a.download = `neuralforge-${Date.now()}.${item.type === 'video' ? 'webm' : 'png'}`;
+                        a.click();
+                      }}>
+                      <Download className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <Badge variant="secondary" className="absolute top-2 right-2 text-[10px] bg-zinc-900/80">
-                {item.type === 'image' ? <Image className="w-3 h-3 mr-1" /> : <Film className="w-3 h-3 mr-1" />}
-                {item.type}
-              </Badge>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
@@ -1038,90 +1082,38 @@ function GalleryPanel() {
   );
 }
 
-// ─── Models Panel ────────────────────────────────────────────────────────────
+// ─── Models Panel ─────────────────────────────────────────────────────────────
 function ModelsPanel() {
-  const { models, activateModel } = useNeuralForgeStore();
+  const { models, activateModel, updateModel } = useNeuralForgeStore();
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center">
-            <Database className="w-5 h-5 text-emerald-400" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Model Manager</h2>
-            <p className="text-sm text-zinc-500">Free AI models — no download needed</p>
-          </div>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center">
+          <Database className="w-5 h-5 text-emerald-400" />
         </div>
-        <div className="flex items-center gap-2">
-          <Badge className="bg-emerald-600/20 text-emerald-300 border-0">
-            <Globe className="w-3 h-3 mr-1" /> All Free
-          </Badge>
-          <Badge className="bg-violet-600/20 text-violet-300 border-0">
-            <Star className="w-3 h-3 mr-1" /> {models.length} Models
-          </Badge>
+        <div>
+          <h2 className="text-2xl font-bold">AI Models</h2>
+          <p className="text-sm text-zinc-500">All models are free and cloud-based</p>
         </div>
       </div>
 
-      <div className="mb-4 p-4 rounded-xl bg-emerald-900/20 border border-emerald-800/50">
-        <div className="flex items-center gap-2 mb-2">
-          <Globe className="w-5 h-5 text-emerald-400" />
-          <h3 className="font-semibold text-emerald-300">Cloud AI — Free & No API Key</h3>
-        </div>
-        <p className="text-sm text-zinc-400">
-          All models run on free cloud APIs. No downloads, no API keys, no GPU needed. Just select a model and start generating!
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {models.map((model) => (
-          <Card key={model.id} className={`bg-zinc-900/50 border backdrop-blur transition-all ${model.active ? 'border-violet-500/50 shadow-lg shadow-violet-500/10' : 'border-zinc-800'}`}>
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{model.name}</h3>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {model.type === 'image' ? <Image className="w-3 h-3 mr-1" /> : <Film className="w-3 h-3 mr-1" />}
-                      {model.type}
-                    </Badge>
-                    {model.active && (
-                      <Badge className="text-[10px] bg-violet-600/30 text-violet-300">Active</Badge>
-                    )}
-                    {model.free && (
-                      <Badge className="text-[10px] bg-emerald-600/30 text-emerald-300">Free</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-zinc-500 mt-1">{model.description}</p>
-                </div>
+          <Card key={model.id} className={`bg-zinc-900/50 border-zinc-800 backdrop-blur transition-all ${model.active ? 'ring-2 ring-violet-500/50' : ''}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-zinc-200">{model.name}</h3>
+                <Badge className={`text-[9px] ${model.free ? 'bg-emerald-600/20 text-emerald-300' : 'bg-amber-600/20 text-amber-300'} border-0`}>
+                  {model.free ? 'Free' : 'Premium'}
+                </Badge>
               </div>
-
-              <div className="flex items-center gap-3 text-[10px] text-zinc-600 mb-3">
-                <span className="flex items-center gap-1">
-                  <Globe className="w-3 h-3" />
-                  {model.provider === 'pollinations' ? 'Pollinations.ai' : model.provider === 'huggingface' ? 'Hugging Face' : 'ZAI Local'}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Cloud className="w-3 h-3" />
-                  Cloud
-                </span>
-                {model.noApiKey && (
-                  <span className="flex items-center gap-1 text-emerald-500">
-                    <Check className="w-3 h-3" />
-                    No API Key
-                  </span>
-                )}
+              <p className="text-xs text-zinc-500 mb-3">{model.description}</p>
+              <div className="flex items-center gap-2 text-[10px] text-zinc-600">
+                <Badge className="bg-zinc-800/50 text-zinc-400 border-0 text-[9px]">{model.type}</Badge>
+                <Badge className="bg-zinc-800/50 text-zinc-400 border-0 text-[9px]">{model.provider}</Badge>
+                {model.noApiKey && <Badge className="bg-zinc-800/50 text-zinc-400 border-0 text-[9px]">No Key</Badge>}
               </div>
-
-              <Button
-                onClick={() => activateModel(model.id)}
-                variant={model.active ? 'default' : 'outline'}
-                className={`w-full ${model.active ? 'bg-violet-600/20 text-violet-300 border-0' : 'border-zinc-700'}`}
-              >
-                {model.active ? <Check className="w-4 h-4 mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
-                {model.active ? 'Active Model' : 'Select Model'}
-              </Button>
             </CardContent>
           </Card>
         ))}
@@ -1130,22 +1122,10 @@ function ModelsPanel() {
   );
 }
 
-// ─── Safety Panel ────────────────────────────────────────────────────────────
+// ─── Safety Panel ─────────────────────────────────────────────────────────────
 function SafetyPanel() {
   const { safetySettings, updateSafetySettings, addSafetyLog, clearSafetyLog } = useNeuralForgeStore();
-  const [newBlockedWord, setNewBlockedWord] = useState('');
-
-  const addBlockedWord = () => {
-    if (newBlockedWord.trim() && !safetySettings.blockedPrompts.includes(newBlockedWord.trim().toLowerCase())) {
-      updateSafetySettings({ blockedPrompts: [...safetySettings.blockedPrompts, newBlockedWord.trim().toLowerCase()] });
-      setNewBlockedWord('');
-      toast.success('Keyword added to block list');
-    }
-  };
-
-  const removeBlockedWord = (word: string) => {
-    updateSafetySettings({ blockedPrompts: safetySettings.blockedPrompts.filter(w => w !== word) });
-  };
+  const [newBlocked, setNewBlocked] = useState('');
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -1154,99 +1134,82 @@ function SafetyPanel() {
           <Shield className="w-5 h-5 text-red-400" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold">Safety & Compliance</h2>
-          <p className="text-sm text-zinc-500">Content filtering and safety controls</p>
+          <h2 className="text-2xl font-bold">Safety Settings</h2>
+          <p className="text-sm text-zinc-500">Content filtering and moderation</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Settings */}
+      <div className="space-y-6">
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-          <CardContent className="p-5 space-y-5">
+          <CardContent className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-zinc-300">Content Filter</h3>
-                <p className="text-xs text-zinc-500">Block prompts with inappropriate content</p>
+                <Label className="text-zinc-200">Content Filter</Label>
+                <p className="text-xs text-zinc-500 mt-1">Block prompts containing inappropriate content</p>
               </div>
-              <Switch
-                checked={safetySettings.contentFilterEnabled}
-                onCheckedChange={(v) => updateSafetySettings({ contentFilterEnabled: v })}
-              />
+              <Switch checked={safetySettings.contentFilterEnabled} onCheckedChange={(v) => updateSafetySettings({ contentFilterEnabled: v })} />
             </div>
-
             <Separator className="bg-zinc-800" />
-
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-zinc-300">NSFW Detection</h3>
-                <p className="text-xs text-zinc-500">Flag potentially explicit content</p>
+                <Label className="text-zinc-200">NSFW Detection</Label>
+                <p className="text-xs text-zinc-500 mt-1">Flag potentially inappropriate generated content</p>
               </div>
-              <Switch
-                checked={safetySettings.nsfwDetectionEnabled}
-                onCheckedChange={(v) => updateSafetySettings({ nsfwDetectionEnabled: v })}
-              />
-            </div>
-
-            <Separator className="bg-zinc-800" />
-
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-zinc-300">Blocked Keywords</h3>
-              <div className="flex gap-2">
-                <Input
-                  value={newBlockedWord}
-                  onChange={(e) => setNewBlockedWord(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addBlockedWord()}
-                  placeholder="Add keyword..."
-                  className="bg-zinc-800/50 border-zinc-700"
-                />
-                <Button onClick={addBlockedWord} variant="outline" className="border-zinc-700 shrink-0">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {safetySettings.blockedPrompts.map((word) => (
-                  <Badge key={word} variant="secondary" className="text-xs bg-red-600/20 text-red-300 cursor-pointer hover:bg-red-600/30"
-                    onClick={() => removeBlockedWord(word)}>
-                    {word} <X className="w-3 h-3 ml-1" />
-                  </Badge>
-                ))}
-              </div>
+              <Switch checked={safetySettings.nsfwDetectionEnabled} onCheckedChange={(v) => updateSafetySettings({ nsfwDetectionEnabled: v })} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Safety Log */}
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-zinc-300 text-sm">Safety Log</CardTitle>
-              <Button variant="ghost" size="sm" className="text-zinc-500 h-7" onClick={clearSafetyLog}>
+          <CardContent className="p-5 space-y-4">
+            <Label className="text-zinc-200">Blocked Keywords</Label>
+            <div className="flex flex-wrap gap-2">
+              {safetySettings.blockedPrompts.map((word) => (
+                <Badge key={word} className="bg-red-600/20 text-red-300 border-0 text-xs flex items-center gap-1">
+                  {word}
+                  <button onClick={() => updateSafetySettings({ blockedPrompts: safetySettings.blockedPrompts.filter(w => w !== word) })}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input value={newBlocked} onChange={(e) => setNewBlocked(e.target.value)}
+                placeholder="Add keyword..." className="bg-zinc-800/50 border-zinc-700" />
+              <Button onClick={() => {
+                if (newBlocked.trim()) {
+                  updateSafetySettings({ blockedPrompts: [...safetySettings.blockedPrompts, newBlocked.trim()] });
+                  setNewBlocked('');
+                }
+              }} className="bg-red-600 hover:bg-red-500">
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <Label className="text-zinc-200">Safety Log</Label>
+              <Button variant="ghost" size="sm" className="text-xs text-zinc-500" onClick={clearSafetyLog}>
                 <Trash2 className="w-3 h-3 mr-1" /> Clear
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
             {safetySettings.safetyLog.length === 0 ? (
-              <div className="text-center py-8 text-zinc-600">
-                <Shield className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No safety events recorded</p>
-              </div>
+              <p className="text-xs text-zinc-600 text-center py-4">No blocked prompts yet</p>
             ) : (
-              <ScrollArea className="h-[300px]">
-                <div className="space-y-2">
-                  {safetySettings.safetyLog.map((entry) => (
-                    <div key={entry.id} className="p-3 rounded-lg bg-zinc-800/30 border border-zinc-800">
-                      <div className="flex items-center gap-2 mb-1">
-                        <AlertTriangle className="w-3 h-3 text-amber-400" />
-                        <span className="text-xs font-medium text-amber-300">{entry.action}</span>
-                        <span className="text-[10px] text-zinc-600 ml-auto">{new Date(entry.timestamp).toLocaleString()}</span>
-                      </div>
-                      <p className="text-xs text-zinc-400">{entry.reason}</p>
-                      <p className="text-xs text-zinc-500 mt-1 italic">&ldquo;{entry.prompt}&rdquo;</p>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {safetySettings.safetyLog.map((entry) => (
+                  <div key={entry.id} className="flex items-start gap-2 p-2 rounded-lg bg-zinc-800/30">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-zinc-300">{entry.prompt}</p>
+                      <p className="text-[10px] text-zinc-500">{entry.reason}</p>
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1255,9 +1218,9 @@ function SafetyPanel() {
   );
 }
 
-// ─── Settings Panel ──────────────────────────────────────────────────────────
+// ─── Settings Panel ───────────────────────────────────────────────────────────
 function SettingsPanel() {
-  const { appSettings, updateAppSettings, connectionStatus } = useNeuralForgeStore();
+  const { appSettings, updateAppSettings } = useNeuralForgeStore();
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -1267,117 +1230,57 @@ function SettingsPanel() {
         </div>
         <div>
           <h2 className="text-2xl font-bold">Settings</h2>
-          <p className="text-sm text-zinc-500">Configure NeuralForge</p>
+          <p className="text-sm text-zinc-500">Application preferences</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-6 max-w-2xl">
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-          <CardContent className="p-5 space-y-5">
-            <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
-              <Cloud className="w-4 h-4" /> Cloud AI Settings
-            </h3>
-
-            <div className="p-3 rounded-lg bg-emerald-900/20 border border-emerald-800/50">
-              <p className="text-sm text-emerald-300 font-medium">Free Cloud Mode Active</p>
-              <p className="text-xs text-zinc-400 mt-1">
-                NeuralForge uses free cloud AI APIs. No API keys needed. No downloads required. Just generate!
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-zinc-300">Default Resolution</Label>
-              <Select
-                value={appSettings.defaultResolution}
-                onValueChange={(v) => updateAppSettings({ defaultResolution: v })}
-              >
-                <SelectTrigger className="bg-zinc-800/50 border-zinc-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  <SelectItem value="512x512">512 × 512</SelectItem>
-                  <SelectItem value="768x768">768 × 768</SelectItem>
-                  <SelectItem value="1024x1024">1024 × 1024</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-zinc-300">Default Steps</Label>
-                <span className="text-sm text-violet-400 font-mono">{appSettings.defaultSteps}</span>
-              </div>
-              <Slider
-                value={[appSettings.defaultSteps]}
-                onValueChange={([v]) => updateAppSettings({ defaultSteps: v })}
-                min={10} max={50} step={1}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-zinc-300">Default CFG Scale</Label>
-                <span className="text-sm text-violet-400 font-mono">{appSettings.defaultCfgScale}</span>
-              </div>
-              <Slider
-                value={[appSettings.defaultCfgScale]}
-                onValueChange={([v]) => updateAppSettings({ defaultCfgScale: v })}
-                min={1} max={20} step={0.5}
-              />
-            </div>
+          <CardContent className="p-5 space-y-4">
+            <Label className="text-zinc-200">Theme</Label>
+            <Select value={appSettings.theme} onValueChange={(v: 'dark' | 'light') => updateAppSettings({ theme: v })}>
+              <SelectTrigger className="bg-zinc-800/50 border-zinc-700">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-800 border-zinc-700">
+                <SelectItem value="dark">Dark</SelectItem>
+                <SelectItem value="light">Light</SelectItem>
+              </SelectContent>
+            </Select>
           </CardContent>
         </Card>
 
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-          <CardContent className="p-5 space-y-5">
-            <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
-              <Monitor className="w-4 h-4" /> System Info
-            </h3>
+          <CardContent className="p-5 space-y-4">
+            <Label className="text-zinc-200">Default Resolution</Label>
+            <Select value={appSettings.defaultResolution} onValueChange={(v) => updateAppSettings({ defaultResolution: v })}>
+              <SelectTrigger className="bg-zinc-800/50 border-zinc-700">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-800 border-zinc-700">
+                {RESOLUTION_OPTIONS.map((r) => (
+                  <SelectItem key={r.label} value={r.label}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
-                <span className="text-sm text-zinc-400">Status</span>
-                <Badge className="bg-emerald-600/20 text-emerald-300 border-0">
-                  {connectionStatus.backendConnected ? 'Online' : 'Offline'}
-                </Badge>
+        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-zinc-200">Backend</Label>
+                <p className="text-xs text-zinc-500 mt-1">Using Pollinations.ai free cloud API</p>
               </div>
-              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
-                <span className="text-sm text-zinc-400">Version</span>
-                <span className="text-sm text-zinc-300">{connectionStatus.backendVersion}</span>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
-                <span className="text-sm text-zinc-400">AI Engine</span>
-                <span className="text-sm text-zinc-300">{connectionStatus.gpuName}</span>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
-                <span className="text-sm text-zinc-400">Models Available</span>
-                <span className="text-sm text-zinc-300">{connectionStatus.modelsLoaded?.length || 0}</span>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-zinc-400">API Key Required</span>
-                <Badge className="bg-emerald-600/20 text-emerald-300 border-0">No</Badge>
-              </div>
+              <Badge className="bg-emerald-600/20 text-emerald-300 border-0">Cloud</Badge>
             </div>
-
-            <div className="p-3 rounded-lg bg-zinc-800/30 border border-zinc-800">
-              <h4 className="text-xs font-semibold text-zinc-300 mb-2">Available Providers</h4>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 text-xs">
-                  <Globe className="w-3 h-3 text-emerald-400" />
-                  <span className="text-zinc-400">Pollinations.ai</span>
-                  <Badge className="text-[9px] bg-emerald-600/20 text-emerald-300 border-0">Free</Badge>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <Database className="w-3 h-3 text-blue-400" />
-                  <span className="text-zinc-400">Hugging Face</span>
-                  <Badge className="text-[9px] bg-blue-600/20 text-blue-300 border-0">Free Tier</Badge>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <Server className="w-3 h-3 text-violet-400" />
-                  <span className="text-zinc-400">ZAI Engine (Local)</span>
-                  <Badge className="text-[9px] bg-violet-600/20 text-violet-300 border-0">Dev Only</Badge>
-                </div>
-              </div>
+            <div className="mt-4 p-3 rounded-lg bg-zinc-800/30">
+              <p className="text-xs text-zinc-400">
+                NeuralForge uses the free Pollinations.ai API for all AI generation. No API key is required. 
+                All image models generate high-quality results. Video is generated as cinematic keyframes encoded 
+                to WebM on your device for social media use.
+              </p>
             </div>
           </CardContent>
         </Card>
