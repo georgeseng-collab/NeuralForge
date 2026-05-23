@@ -561,75 +561,83 @@ function ImageGenPanel() {
 }
 
 // ─── Video Player Component ──────────────────────────────────────────────────
-function VideoPlayer({ gifUrl, frames, isAnimated }: { gifUrl: string | null; frames: string[]; isAnimated: boolean }) {
+function VideoPlayer({ frames }: { frames: string[] }) {
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [loading, setLoading] = useState<Set<number>>(new Set([0]));
 
   // Auto-advance frames for animation
   useEffect(() => {
-    if (!isPlaying || isAnimated || frames.length <= 1) return;
+    if (!isPlaying || frames.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentFrame((prev) => (prev + 1) % frames.length);
     }, 800);
     return () => clearInterval(interval);
-  }, [isPlaying, isAnimated, frames.length]);
+  }, [isPlaying, frames.length]);
 
-  // If we have an animated GIF, show it directly
-  if (isAnimated && gifUrl) {
-    return (
-      <img
-        src={gifUrl}
-        alt="Generated Video"
-        className="w-full h-full object-contain"
-      />
-    );
-  }
+  // Mark frame as loaded
+  const handleFrameLoad = (idx: number) => {
+    setLoading(prev => {
+      const next = new Set(prev);
+      next.delete(idx);
+      return next;
+    });
+  };
 
-  // Otherwise, cycle through frames
-  if (frames.length > 1) {
-    return (
-      <div className="w-full h-full relative">
-        <img
-          src={frames[currentFrame]}
-          alt={`Frame ${currentFrame + 1}`}
-          className="w-full h-full object-contain"
-        />
-        {/* Frame indicator */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur rounded-full px-3 py-1.5">
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="text-white hover:text-amber-300 transition-colors"
-          >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          </button>
-          <div className="flex gap-1">
-            {frames.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => { setCurrentFrame(i); setIsPlaying(false); }}
-                className={`w-2 h-2 rounded-full transition-all ${i === currentFrame ? 'bg-amber-400 scale-125' : 'bg-white/40 hover:bg-white/60'}`}
-              />
-            ))}
-          </div>
-          <span className="text-[10px] text-white/60">{currentFrame + 1}/{frames.length}</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Single frame
+  // Single frame - just show it
   if (frames.length === 1) {
     return <ImageWithLoader src={frames[0]} />;
   }
 
-  return null;
+  // Multiple frames - animate with player controls
+  return (
+    <div className="w-full h-full relative">
+      {/* Render all frames, show only current */}
+      {frames.map((frame, i) => (
+        <img
+          key={i}
+          src={frame}
+          alt={`Frame ${i + 1}`}
+          className={`w-full h-full object-contain absolute inset-0 transition-opacity duration-300 ${i === currentFrame ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+          onLoad={() => handleFrameLoad(i)}
+          onError={() => handleFrameLoad(i)}
+        />
+      ))}
+
+      {/* Loading indicator */}
+      {loading.has(currentFrame) && frames.length > 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800/50 z-20">
+          <RefreshCw className="w-6 h-6 animate-spin text-zinc-400" />
+        </div>
+      )}
+
+      {/* Frame indicator / Player controls */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/70 backdrop-blur rounded-full px-3 py-1.5 z-30">
+        <button
+          onClick={() => setIsPlaying(!isPlaying)}
+          className="text-white hover:text-amber-300 transition-colors"
+        >
+          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+        </button>
+        <div className="flex gap-1">
+          {frames.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => { setCurrentFrame(i); setIsPlaying(false); }}
+              className={`w-2 h-2 rounded-full transition-all ${i === currentFrame ? 'bg-amber-400 scale-125' : 'bg-white/40 hover:bg-white/60'}`}
+            />
+          ))}
+        </div>
+        <span className="text-[10px] text-white/60">{currentFrame + 1}/{frames.length}</span>
+      </div>
+    </div>
+  );
 }
 
 // ─── Video Generation Panel ──────────────────────────────────────────────────
 function VideoGenPanel() {
   const { videoSettings, updateVideoSettings, videoProgress, setVideoProgress, generatedVideo, setGeneratedVideo, addGalleryItem, safetySettings, addSafetyLog } = useNeuralForgeStore();
   const [videoFrames, setVideoFrames] = useState<string[]>([]);
-  const [isAnimated, setIsAnimated] = useState(false);
 
   const handleGenerate = useCallback(async () => {
     if (!videoSettings.prompt.trim()) {
@@ -653,10 +661,9 @@ function VideoGenPanel() {
     }
 
     const selectedModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
-    const numFrames = Math.min(Math.max(Math.ceil(videoSettings.duration / 2), 2), 6);
+    const numFrames = Math.min(Math.max(Math.ceil(videoSettings.duration / 3), 2), 4);
     setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: numFrames, message: `Generating ${numFrames} frames with ${selectedModel?.name || 'AI'}...` });
     setVideoFrames([]);
-    setIsAnimated(false);
 
     try {
       const res = await fetch('/api/generate/video', {
@@ -672,7 +679,7 @@ function VideoGenPanel() {
 
       const data = await res.json();
 
-      // Set the video URL (GIF or first frame)
+      // Set the video URL (first frame for compatibility)
       setGeneratedVideo(data.video_url);
 
       // Set individual frames for player
@@ -681,8 +688,6 @@ function VideoGenPanel() {
       } else {
         setVideoFrames([data.video_url]);
       }
-
-      setIsAnimated(data.is_animated || false);
 
       addGalleryItem({
         id: crypto.randomUUID(),
@@ -698,8 +703,7 @@ function VideoGenPanel() {
       });
 
       const frameCount = data.frame_count || 1;
-      const animStatus = data.is_animated ? 'animated' : `${frameCount} frames`;
-      toast.success(`Video generated with ${data.model_used || 'AI'} (${animStatus})!`);
+      toast.success(`Video generated with ${data.model_used || 'AI'} (${frameCount} frames)!`);
     } catch (err: any) {
       toast.error(err.message || 'Video generation failed.');
     } finally {
@@ -806,7 +810,7 @@ function VideoGenPanel() {
 
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5" />
-                Generates an animated video with {Math.min(Math.max(Math.ceil(videoSettings.duration / 2), 2), 6)} cinematic frames
+                Generates an animated video with {Math.min(Math.max(Math.ceil(videoSettings.duration / 3), 2), 4)} cinematic frames
               </div>
 
               <Button
@@ -853,7 +857,7 @@ function VideoGenPanel() {
             <CardContent>
               <div className="aspect-video rounded-xl bg-zinc-800/30 border border-zinc-800 flex items-center justify-center overflow-hidden">
                 {hasVideo ? (
-                  <VideoPlayer gifUrl={generatedVideo} frames={videoFrames} isAnimated={isAnimated} />
+                  <VideoPlayer frames={videoFrames} />
                 ) : videoProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
@@ -873,11 +877,11 @@ function VideoGenPanel() {
                   <Button variant="outline" className="flex-1 border-zinc-700"
                     onClick={() => {
                       const a = document.createElement('a');
-                      a.href = generatedVideo;
-                      a.download = `neuralforge-video-${Date.now()}.${isAnimated ? 'gif' : 'png'}`;
+                      a.href = videoFrames[0] || generatedVideo;
+                      a.download = `neuralforge-video-${Date.now()}.png`;
                       a.click();
                     }}>
-                    <Download className="w-4 h-4 mr-2" /> Download {isAnimated ? 'GIF' : 'Image'}
+                    <Download className="w-4 h-4 mr-2" /> Download
                   </Button>
                   <Button
                     variant="outline"

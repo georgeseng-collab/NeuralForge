@@ -649,7 +649,6 @@ export async function generateVideo(
   numFrames: number = 4,
 ): Promise<{
   frames: string[];
-  gifUrl: string | null;
   thumbnailUrl: string;
   isReal: boolean;
   provider: string;
@@ -676,7 +675,7 @@ export async function generateVideo(
   const frames: string[] = [];
   const actualFrames = Math.min(numFrames, 6); // Cap at 6 frames
 
-  // Generate multiple keyframes with scene progression
+  // Generate multiple keyframes with scene progression - IN PARALLEL
   const framePromises = [];
   for (let i = 0; i < actualFrames; i++) {
     const sceneDesc = SCENE_PROGRESSION[i] || `scene frame ${i + 1}`;
@@ -685,11 +684,11 @@ export async function generateVideo(
 
     const url = buildPollinationsUrl(framePrompt, pollinationsModel, width, height, seed);
     framePromises.push(
-      fetchImageAsBase64(url, 55000)
+      fetchImageAsBase64(url, 45000)
         .catch(async () => {
           // Fallback to flux model
           const fallbackUrl = buildPollinationsUrl(framePrompt, 'flux', width, height, seed);
-          return fetchImageAsBase64(fallbackUrl, 30000).catch(() => url);
+          return fetchImageAsBase64(fallbackUrl, 25000).catch(() => url);
         })
     );
   }
@@ -707,14 +706,13 @@ export async function generateVideo(
     const fallbackPrompt = `${prompt}, ${stylePrefix}, cinematic frame`;
     const url = buildPollinationsUrl(fallbackPrompt, 'flux', width, height, undefined);
     try {
-      const base64Image = await fetchImageAsBase64(url, 55000);
+      const base64Image = await fetchImageAsBase64(url, 45000);
       frames.push(base64Image);
     } catch {
       const placeholder = generatePlaceholderImage(prompt, style, width, height);
       frames.push(placeholder);
       return {
         frames,
-        gifUrl: null,
         thumbnailUrl: frames[0] || placeholder,
         isReal: false,
         provider: 'placeholder',
@@ -723,89 +721,13 @@ export async function generateVideo(
     }
   }
 
-  // Try to create an animated GIF using sharp
-  let gifUrl: string | null = null;
-  try {
-    gifUrl = await createAnimatedGif(frames);
-  } catch (err: any) {
-    console.log(`[NeuralForge] GIF creation failed: ${err.message}`);
-  }
-
   return {
     frames,
-    gifUrl,
     thumbnailUrl: frames[0],
     isReal: true,
     provider: 'pollinations',
     modelUsed: modelId,
   };
-}
-
-// ─── Create Animated GIF from frames ──────────────────────────────────────
-async function createAnimatedGif(frameDataUrls: string[]): Promise<string> {
-  const sharp = await import('sharp');
-
-  // Decode base64 frames to buffers
-  const frameBuffers: Buffer[] = [];
-  for (const dataUrl of frameDataUrls) {
-    if (dataUrl.startsWith('data:')) {
-      const base64Data = dataUrl.split(',')[1];
-      if (base64Data) {
-        frameBuffers.push(Buffer.from(base64Data, 'base64'));
-      }
-    } else if (dataUrl.startsWith('http')) {
-      // Fetch the URL
-      const response = await fetch(dataUrl, { signal: AbortSignal.timeout(30000) });
-      if (response.ok) {
-        const arrayBuffer = await response.arrayBuffer();
-        frameBuffers.push(Buffer.from(arrayBuffer));
-      }
-    }
-  }
-
-  if (frameBuffers.length === 0) throw new Error('No frames to create GIF');
-
-  // Resize all frames to same dimensions and convert to GIF-compatible format
-  const targetWidth = 512;
-  const targetHeight = Math.round(targetWidth * 9 / 16); // 16:9 ratio
-
-  const resizedFrames: Buffer[] = [];
-  for (const buf of frameBuffers) {
-    const resized = await sharp.default(buf)
-      .resize(targetWidth, targetHeight, { fit: 'cover' })
-      .gif()
-      .toBuffer();
-    resizedFrames.push(resized);
-  }
-
-  // Create animated GIF using sharp's composite/animation features
-  // Each frame displays for ~800ms (adjustable)
-  const delayMs = 800;
-
-  if (resizedFrames.length === 1) {
-    // Single frame - just return as base64 GIF
-    return `data:image/gif;base64,${resizedFrames[0].toString('base64')}`;
-  }
-
-  // Use sharp to create animated GIF
-  // sharp supports animated GIF via joinChannel
-  const gifOptions: Record<string, unknown> = {
-    delay: Array(resizedFrames.length).fill(delayMs),
-    loop: 0, // Infinite loop
-  };
-
-  // Create the composite input for animation
-  const compositeInputs = resizedFrames.slice(1).map((frame) => ({
-    input: frame,
-    delay: delayMs,
-  }));
-
-  const animatedGif = await sharp.default(resizedFrames[0])
-    .gif(gifOptions)
-    .joinChannel(compositeInputs.map(c => c.input), gifOptions)
-    .toBuffer();
-
-  return `data:image/gif;base64,${animatedGif.toString('base64')}`;
 }
 
 // ─── Legacy: Single keyframe generation (kept for compatibility) ──────────
