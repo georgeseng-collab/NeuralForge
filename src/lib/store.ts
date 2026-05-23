@@ -105,7 +105,7 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
     height: 768,
     imageToVideo: false,
     sourceImage: null,
-    modelId: 'flux',
+    modelId: 'wan',
   },
   updateVideoSettings: (settings) =>
     set((state) => ({ videoSettings: { ...state.videoSettings, ...settings } })),

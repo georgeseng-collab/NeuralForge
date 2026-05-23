@@ -64,6 +64,8 @@ const BADGE_COLORS: Record<string, string> = {
   'Dark': 'bg-gray-600/30 text-gray-300',
   'Open Source': 'bg-green-600/30 text-green-300',
   'Video': 'bg-red-600/30 text-red-300',
+  'Fun': 'bg-yellow-600/30 text-yellow-300',
+  'Smart': 'bg-indigo-600/30 text-indigo-300',
 };
 
 // ─── Image Loader Component ─────────────────────────────────────────────────
@@ -96,7 +98,6 @@ function ImageWithLoader({ src }: { src: string }) {
         alt="Generated"
         className="w-full h-full object-contain"
         loading="eager"
-        crossOrigin="anonymous"
         onLoad={() => setLoading(false)}
         onError={() => {
           setLoading(false);
@@ -531,8 +532,12 @@ function ImageGenPanel() {
                   <span><strong className="text-zinc-300">Flux</strong> — Best all-rounder for any style</span>
                 </p>
                 <p className="flex items-start gap-2">
+                  <span className="text-yellow-400 mt-0.5">•</span>
+                  <span><strong className="text-zinc-300">NanoBanana</strong> — Fun & fast creative AI</span>
+                </p>
+                <p className="flex items-start gap-2">
                   <span className="text-pink-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Flux Realism</strong> — Photorealistic portraits & scenes</span>
+                  <span><strong className="text-zinc-300">GPT Image</strong> — Strong prompt understanding</span>
                 </p>
                 <p className="flex items-start gap-2">
                   <span className="text-cyan-400 mt-0.5">•</span>
@@ -540,11 +545,11 @@ function ImageGenPanel() {
                 </p>
                 <p className="flex items-start gap-2">
                   <span className="text-amber-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">Turbo</strong> — Fastest generation, good for testing</span>
+                  <span><strong className="text-zinc-300">Grok Imagine</strong> — Witty & creative outputs</span>
                 </p>
                 <p className="flex items-start gap-2">
-                  <span className="text-gray-400 mt-0.5">•</span>
-                  <span><strong className="text-zinc-300">AnyDark</strong> — Gothic, noir & dark aesthetics</span>
+                  <span className="text-emerald-400 mt-0.5">•</span>
+                  <span><strong className="text-zinc-300">SeeDream 5</strong> — Vibrant colors & composition</span>
                 </p>
               </div>
             </CardContent>
@@ -580,7 +585,8 @@ function VideoGenPanel() {
       }
     }
 
-    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: videoSettings.duration * videoSettings.fps, message: 'Generating video keyframe...' });
+    const selectedModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
+    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: videoSettings.duration * videoSettings.fps, message: `Generating with ${selectedModel?.name || 'AI'}...` });
 
     try {
       const res = await fetch('/api/generate/video', {
@@ -608,7 +614,7 @@ function VideoGenPanel() {
         modelUsed: data.model_used,
         provider: data.provider,
       });
-      toast.success('Video keyframe generated!');
+      toast.success(`Video keyframe generated with ${data.model_used || 'AI'}!`);
     } catch (err: any) {
       toast.error(err.message || 'Video generation failed.');
     } finally {
@@ -616,14 +622,7 @@ function VideoGenPanel() {
     }
   }, [videoSettings, safetySettings, setVideoProgress, setGeneratedVideo, addGalleryItem, addSafetyLog]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => updateVideoSettings({ sourceImage: reader.result as string });
-      reader.readAsDataURL(file);
-    }
-  };
+  const selectedVideoModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -633,10 +632,10 @@ function VideoGenPanel() {
         </div>
         <div>
           <h2 className="text-2xl font-bold">Video Generation</h2>
-          <p className="text-sm text-zinc-500">Create AI video keyframes from text</p>
+          <p className="text-sm text-zinc-500">Create cinematic AI video keyframes — free, no API key</p>
         </div>
-        <Badge className="ml-auto bg-amber-600/20 text-amber-300 border-0">
-          <Video className="w-3 h-3 mr-1" /> Beta
+        <Badge className="ml-auto bg-emerald-600/20 text-emerald-300 border-0">
+          <Globe className="w-3 h-3 mr-1" /> Free
         </Badge>
       </div>
 
@@ -648,12 +647,12 @@ function VideoGenPanel() {
               <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
                 <Video className="w-4 h-4 text-amber-400" /> Video Model
               </Label>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
                 {VIDEO_MODEL_OPTIONS.map((model) => (
                   <button
                     key={model.id}
                     onClick={() => updateVideoSettings({ modelId: model.id })}
-                    className={`text-left p-2.5 rounded-lg border transition-all duration-150
+                    className={`text-left p-2.5 rounded-lg border transition-all duration-150 group
                       ${videoSettings.modelId === model.id
                         ? 'bg-amber-600/20 border-amber-500/50 shadow-lg shadow-amber-500/10'
                         : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
@@ -666,6 +665,10 @@ function VideoGenPanel() {
                       </Badge>
                     </div>
                     <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <Bolt className="w-2.5 h-2.5 text-amber-400" />
+                      <span className="text-[9px] text-zinc-500">{model.speed}</span>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -679,9 +682,10 @@ function VideoGenPanel() {
                 <Textarea
                   value={videoSettings.prompt}
                   onChange={(e) => updateVideoSettings({ prompt: e.target.value })}
-                  placeholder="A timelapse of a flower blooming in a garden..."
+                  placeholder="A cinematic shot of a cat and dog playing in a sunset garden, dramatic lighting..."
                   className="bg-zinc-800/50 border-zinc-700 text-zinc-100 placeholder:text-zinc-600 min-h-[100px] resize-none"
                 />
+                <p className="text-xs text-zinc-600">{videoSettings.prompt.length} characters</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -716,7 +720,7 @@ function VideoGenPanel() {
 
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                Generates a cinematic keyframe image
+                Generates a cinematic 16:9 keyframe image for your video scene
               </div>
 
               <Button
@@ -726,11 +730,11 @@ function VideoGenPanel() {
               >
                 {videoProgress.isGenerating ? (
                   <>
-                    <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> Generating...
+                    <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> Generating with {selectedVideoModel?.name || 'AI'}...
                   </>
                 ) : (
                   <>
-                    <Film className="w-5 h-5 mr-2" /> Generate Video Keyframe
+                    <Film className="w-5 h-5 mr-2" /> Generate with {selectedVideoModel?.name || 'AI'}
                   </>
                 )}
               </Button>
@@ -747,37 +751,94 @@ function VideoGenPanel() {
           </Card>
         </div>
 
-        {/* Preview */}
-        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-          <CardHeader>
-            <CardTitle className="text-zinc-300 text-sm">Video Preview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="aspect-video rounded-xl bg-zinc-800/30 border border-zinc-800 flex items-center justify-center overflow-hidden">
-              {generatedVideo ? (
-                <img src={generatedVideo} alt="Video keyframe" className="w-full h-full object-contain" />
-              ) : (
-                <div className="text-center text-zinc-600">
-                  <Film className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Video keyframe will appear here</p>
+        <div className="space-y-4">
+          {/* Video Preview */}
+          <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+            <CardHeader>
+              <CardTitle className="text-zinc-300 text-sm flex items-center gap-2">
+                <Camera className="w-4 h-4" /> Video Keyframe Preview
+                {selectedVideoModel && (
+                  <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">
+                    {selectedVideoModel.name}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="aspect-video rounded-xl bg-zinc-800/30 border border-zinc-800 flex items-center justify-center overflow-hidden">
+                {generatedVideo ? (
+                  <ImageWithLoader src={generatedVideo} />
+                ) : videoProgress.isGenerating ? (
+                  <div className="text-center text-zinc-500 p-4">
+                    <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
+                    <p className="text-sm">Generating your keyframe...</p>
+                    <p className="text-xs mt-1 text-zinc-600">This may take 15-45 seconds</p>
+                  </div>
+                ) : (
+                  <div className="text-center text-zinc-600">
+                    <Film className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">Video keyframe will appear here</p>
+                    <p className="text-xs mt-1 text-zinc-700">Select a model and enter a prompt to start</p>
+                  </div>
+                )}
+              </div>
+              {generatedVideo && (
+                <div className="flex gap-2 mt-4">
+                  <Button variant="outline" className="flex-1 border-zinc-700"
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = generatedVideo;
+                      a.download = `neuralforge-video-${Date.now()}.png`;
+                      a.click();
+                    }}>
+                    <Download className="w-4 h-4 mr-2" /> Download
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-zinc-700"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedVideo);
+                      toast.success('Image URL copied!');
+                    }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
                 </div>
               )}
-            </div>
-            {generatedVideo && (
-              <div className="flex gap-2 mt-4">
-                <Button variant="outline" className="flex-1 border-zinc-700"
-                  onClick={() => {
-                    const a = document.createElement('a');
-                    a.href = generatedVideo;
-                    a.download = `neuralforge-video-${Date.now()}.png`;
-                    a.click();
-                  }}>
-                  <Download className="w-4 h-4 mr-2" /> Download
-                </Button>
+            </CardContent>
+          </Card>
+
+          {/* Video Tips */}
+          <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
+                <Star className="w-4 h-4 text-amber-400" /> Video Tips
+              </h3>
+              <div className="space-y-2 text-xs text-zinc-500">
+                <p className="flex items-start gap-2">
+                  <span className="text-amber-400 mt-0.5">•</span>
+                  <span><strong className="text-zinc-300">Wan Video</strong> — Best for cinematic keyframes</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-0.5">•</span>
+                  <span><strong className="text-zinc-300">SeeDance Pro</strong> — Premium motion-style frames</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-violet-400 mt-0.5">•</span>
+                  <span><strong className="text-zinc-300">Grok Video Pro</strong> — Creative & dynamic output</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-cyan-400 mt-0.5">•</span>
+                  <span><strong className="text-zinc-300">P-Video</strong> — Fast Pollinations native video</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-emerald-400 mt-0.5">•</span>
+                  <span><strong className="text-zinc-300">Nova Reel</strong> — Professional Amazon cinematic</span>
+                </p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

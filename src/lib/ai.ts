@@ -6,7 +6,7 @@
 export interface FreeAIModel {
   id: string;
   name: string;
-  provider: 'pollinations' | 'huggingface' | 'zai';
+  provider: 'pollinations' | 'huggingface';
   type: 'image' | 'video';
   description: string;
   maxResolution: string;
@@ -17,6 +17,7 @@ export interface FreeAIModel {
 }
 
 export const FREE_AI_MODELS: FreeAIModel[] = [
+  // ─── Image Models ─────────────────────────────────────────────
   {
     id: 'flux',
     name: 'Flux',
@@ -114,38 +115,219 @@ export const FREE_AI_MODELS: FreeAIModel[] = [
     noApiKey: true,
   },
   {
-    id: 'stable-diffusion-xl',
-    name: 'Stable Diffusion XL',
-    provider: 'huggingface',
+    id: 'nanobanana-2',
+    name: 'NanoBanana 2',
+    provider: 'pollinations',
     type: 'image',
-    description: 'Open-source high quality model. Great for diverse styles and subjects.',
-    maxResolution: '1024x1024',
-    speed: 'medium',
-    quality: 'high',
-    free: true,
-    noApiKey: true,
-  },
-  {
-    id: 'playground-v2',
-    name: 'Playground v2.5',
-    provider: 'huggingface',
-    type: 'image',
-    description: 'Playground AI model with vibrant, creative outputs and strong composition.',
-    maxResolution: '1024x1024',
-    speed: 'medium',
-    quality: 'high',
-    free: true,
-    noApiKey: true,
-  },
-  {
-    id: 'zai-default',
-    name: 'ZAI Engine (Local)',
-    provider: 'zai',
-    type: 'image',
-    description: 'Local ZAI AI engine — only available when running on the development server.',
+    description: 'Fast and creative AI model with unique artistic style. Great for fun generations.',
     maxResolution: '1024x1024',
     speed: 'fast',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'nanobanana-pro',
+    name: 'NanoBanana Pro',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Premium NanoBanana model with enhanced detail and quality outputs.',
+    maxResolution: '1024x1024',
+    speed: 'medium',
     quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'gptimage',
+    name: 'GPT Image',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'OpenAI GPT-based image generation with strong prompt understanding.',
+    maxResolution: '1024x1024',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'gptimage-large',
+    name: 'GPT Image Large',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Large GPT image model with maximum detail and resolution.',
+    maxResolution: '1024x1024',
+    speed: 'slow',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'gpt-image-2',
+    name: 'GPT Image 2',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Next-gen GPT image model with improved composition and text rendering.',
+    maxResolution: '1024x1024',
+    speed: 'medium',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'seedream5',
+    name: 'SeeDream 5',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Alibaba SeeDream model with vibrant colors and creative composition.',
+    maxResolution: '1024x1024',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'zimage',
+    name: 'ZImage',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'ZImage model with balanced quality and speed for general use.',
+    maxResolution: '1024x1024',
+    speed: 'fast',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'qwen-image',
+    name: 'Qwen Image',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Alibaba Qwen vision model with strong multilingual prompt support.',
+    maxResolution: '1024x1024',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'grok-imagine',
+    name: 'Grok Imagine',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'xAI Grok image generation with witty and creative outputs.',
+    maxResolution: '1024x1024',
+    speed: 'fast',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'grok-imagine-pro',
+    name: 'Grok Imagine Pro',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Premium Grok image model with enhanced detail and composition.',
+    maxResolution: '1024x1024',
+    speed: 'slow',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'nova-canvas',
+    name: 'Nova Canvas',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Amazon Nova model with clean, professional image outputs.',
+    maxResolution: '1024x1024',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'klein',
+    name: 'Klein',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Klein model with unique artistic interpretation and style.',
+    maxResolution: '1024x1024',
+    speed: 'fast',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'p-image',
+    name: 'P-Image',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Pollinations native image model with creative, vibrant outputs.',
+    maxResolution: '1024x1024',
+    speed: 'fast',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  // ─── Video-Capable Models (used for keyframe + video generation) ──
+  {
+    id: 'wan-image',
+    name: 'Wan Image',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Wan model great for cinematic frames and video-like compositions.',
+    maxResolution: '1344x768',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'wan-image-pro',
+    name: 'Wan Image Pro',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Premium Wan model with cinematic quality and video-ready frames.',
+    maxResolution: '1344x768',
+    speed: 'slow',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'seedance-2.0',
+    name: 'SeeDance 2.0',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Alibaba SeeDance model optimized for motion and cinematic frames.',
+    maxResolution: '1344x768',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'seedance-pro',
+    name: 'SeeDance Pro',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Premium SeeDance model with best cinematic and motion-style frames.',
+    maxResolution: '1344x768',
+    speed: 'slow',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'ltx-2',
+    name: 'LTX Video 2',
+    provider: 'pollinations',
+    type: 'image',
+    description: 'Lightricks video model with strong cinematic keyframe generation.',
+    maxResolution: '1344x768',
+    speed: 'medium',
+    quality: 'high',
     free: true,
     noApiKey: true,
   },
@@ -153,13 +335,133 @@ export const FREE_AI_MODELS: FreeAIModel[] = [
 
 export const FREE_VIDEO_MODELS: FreeAIModel[] = [
   {
-    id: 'flux-video',
+    id: 'wan',
+    name: 'Wan Video',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'Generate cinematic video keyframes from text using Wan model.',
+    maxResolution: '1344x768',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'wan-fast',
+    name: 'Wan Fast',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'Fast video keyframe generation for quick previews.',
+    maxResolution: '1344x768',
+    speed: 'fast',
+    quality: 'standard',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'seedance-2.0',
+    name: 'SeeDance 2.0',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'Alibaba SeeDance for motion-rich cinematic keyframes.',
+    maxResolution: '1344x768',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'seedance-pro',
+    name: 'SeeDance Pro',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'Premium SeeDance model for high-quality video keyframes.',
+    maxResolution: '1344x768',
+    speed: 'slow',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'ltx-2',
+    name: 'LTX Video 2',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'Lightricks video model for cinematic keyframe generation.',
+    maxResolution: '1344x768',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'flux',
     name: 'Flux Video',
     provider: 'pollinations',
     type: 'video',
-    description: 'Generate short video clips from text prompts using AI.',
+    description: 'Flux model for high-quality video keyframe generation.',
+    maxResolution: '1344x768',
+    speed: 'fast',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'gptimage',
+    name: 'GPT Video',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'GPT Image model for detailed video keyframes.',
+    maxResolution: '1344x768',
+    speed: 'medium',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'veo',
+    name: 'Veo Video',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'Google Veo-style model for cinematic video keyframes.',
     maxResolution: '1344x768',
     speed: 'slow',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'grok-video-pro',
+    name: 'Grok Video Pro',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'xAI Grok video model with creative and dynamic keyframes.',
+    maxResolution: '1344x768',
+    speed: 'slow',
+    quality: 'ultra',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'p-video',
+    name: 'P-Video',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'Pollinations native video model for dynamic keyframes.',
+    maxResolution: '1344x768',
+    speed: 'fast',
+    quality: 'high',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'nova-reel',
+    name: 'Nova Reel',
+    provider: 'pollinations',
+    type: 'video',
+    description: 'Amazon Nova video model for professional cinematic keyframes.',
+    maxResolution: '1344x768',
+    speed: 'medium',
     quality: 'high',
     free: true,
     noApiKey: true,
@@ -262,53 +564,7 @@ async function generateWithHuggingFace(
   return `data:image/png;base64,${base64}`;
 }
 
-// ─── ZAI Local API ─────────────────────────────────────────────────────────
-const ZAI_BASE_URL = process.env.ZAI_BASE_URL || 'http://172.25.136.193:8080/v1';
-const ZAI_API_KEY = process.env.ZAI_API_KEY || 'Z.ai';
-const ZAI_TOKEN = process.env.ZAI_TOKEN || '';
-const ZAI_CHAT_ID = process.env.ZAI_CHAT_ID || '';
-const ZAI_USER_ID = process.env.ZAI_USER_ID || '';
-
-async function generateWithZAI(
-  prompt: string,
-  size: string,
-): Promise<string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${ZAI_API_KEY}`,
-    'X-Z-AI-From': 'Z',
-  };
-  if (ZAI_TOKEN) headers['X-Token'] = ZAI_TOKEN;
-  if (ZAI_CHAT_ID) headers['X-Chat-Id'] = ZAI_CHAT_ID;
-  if (ZAI_USER_ID) headers['X-User-Id'] = ZAI_USER_ID;
-
-  const response = await fetch(`${ZAI_BASE_URL}/images/generations`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ prompt, size }),
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!response.ok) throw new Error(`ZAI API returned ${response.status}`);
-
-  const result = await response.json();
-  const imageBase64 = result.data?.[0]?.base64;
-  if (imageBase64) return `data:image/png;base64,${imageBase64}`;
-
-  const imageUrl = result.data?.[0]?.url;
-  if (imageUrl) {
-    const imgResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
-    if (imgResponse.ok) {
-      const arrayBuffer = await imgResponse.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString('base64');
-      return `data:image/png;base64,${base64}`;
-    }
-  }
-
-  throw new Error('No image data in ZAI response');
-}
-
-// ─── Main Generation Function ──────────────────────────────────────────────
+// ─── Main Image Generation Function ───────────────────────────────────────
 export async function generateImage(
   prompt: string,
   size: string = '1024x1024',
@@ -329,10 +585,10 @@ export async function generateImage(
       case 'pollinations': {
         const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, seed || undefined);
 
-        // Strategy: Try to fetch as base64 (works when server has time)
+        // Strategy: Try to fetch as base64 first (reliable display)
         // If it times out, return the direct URL and let the browser load it
         try {
-          const base64Image = await fetchImageAsBase64(pollinationsUrl, 50000);
+          const base64Image = await fetchImageAsBase64(pollinationsUrl, 55000);
           return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
         } catch (fetchErr: any) {
           console.log(`[NeuralForge] Base64 fetch failed for ${modelId}: ${fetchErr.message}. Trying flux fallback...`);
@@ -344,7 +600,6 @@ export async function generateImage(
             return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
           } catch {
             // Last resort: return the direct URL for the browser to load
-            // The browser has more time to load images than the serverless function
             console.log('[NeuralForge] Returning direct URL for browser-side loading');
             return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
           }
@@ -362,16 +617,6 @@ export async function generateImage(
         }
       }
 
-      case 'zai': {
-        try {
-          const base64Image = await generateWithZAI(enhancedPrompt, size);
-          return { imageUrl: base64Image, isReal: true, provider: 'zai', modelUsed: modelId };
-        } catch {
-          const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
-          return { imageUrl: fallbackUrl, isReal: true, provider: 'pollinations', modelUsed: 'flux (zai fallback)' };
-        }
-      }
-
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
@@ -383,27 +628,52 @@ export async function generateImage(
   }
 }
 
-// ─── Video Generation (uses image as keyframe) ────────────────────────────
+// ─── Video Generation (generates cinematic keyframe) ──────────────────────
 export async function generateVideoKeyframe(
   prompt: string,
   style: string = 'Photorealistic',
   width: number = 1344,
   height: number = 768,
-  modelId: string = 'flux',
+  modelId: string = 'wan',
 ): Promise<{ imageUrl: string; isReal: boolean; provider: string; modelUsed: string }> {
   const stylePrefix = STYLE_MAP[style] || STYLE_MAP['Photorealistic'];
-  const enhancedPrompt = `${prompt}, ${stylePrefix}, cinematic frame, movie still, 16:9 aspect ratio`;
+  const enhancedPrompt = `${prompt}, ${stylePrefix}, cinematic frame, movie still, dramatic lighting, 16:9 aspect ratio, film grain`;
+
+  // Map video model IDs to their Pollinations image equivalents
+  const videoModelMap: Record<string, string> = {
+    'wan': 'wan',
+    'wan-fast': 'wan-fast',
+    'seedance-2.0': 'seedance-2.0',
+    'seedance-pro': 'seedance-pro',
+    'ltx-2': 'ltx-2',
+    'flux': 'flux',
+    'gptimage': 'gptimage',
+    'veo': 'veo',
+    'grok-video-pro': 'grok-video-pro',
+    'p-video': 'p-video',
+    'nova-reel': 'nova-reel',
+  };
+
+  const pollinationsModel = videoModelMap[modelId] || 'wan';
 
   try {
-    const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, undefined);
+    const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, pollinationsModel, width, height, undefined);
 
     try {
-      const base64Image = await fetchImageAsBase64(pollinationsUrl, 50000);
+      const base64Image = await fetchImageAsBase64(pollinationsUrl, 55000);
       return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
     } catch {
-      return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
+      // Try with flux as fallback
+      try {
+        const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, undefined);
+        const base64Image = await fetchImageAsBase64(fallbackUrl, 30000);
+        return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: `${modelId} (flux fallback)` };
+      } catch {
+        return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
+      }
     }
   } catch (error: any) {
+    console.error(`[NeuralForge] Video keyframe generation failed:`, error.message);
     const placeholder = generatePlaceholderImage(prompt, style, width, height);
     return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
   }
@@ -429,17 +699,9 @@ export async function checkHealth(): Promise<{ reachable: boolean; mode: string;
     if (res.ok || res.status === 503) providers.push('huggingface');
   } catch {}
 
-  try {
-    const res = await fetch(`${ZAI_BASE_URL}/models`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(2000),
-    });
-    if (res.ok) providers.push('zai');
-  } catch {}
-
   return {
     reachable: providers.length > 0,
-    mode: providers.includes('zai') ? 'full' : 'cloud',
+    mode: 'cloud',
     providers,
   };
 }

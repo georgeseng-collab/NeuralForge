@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       duration = 2,
       fps = 12,
       style = 'Photorealistic',
-      modelId = 'flux',
+      modelId = 'wan',
     } = body;
 
     if (!prompt || !prompt.trim()) {
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate a keyframe image for the video
+    // Generate a cinematic keyframe image for the video
     const { imageUrl, isReal, provider, modelUsed } = await generateVideoKeyframe(
       prompt,
       style,
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       mode: isReal ? 'ai-generated' : 'demo-preview',
       provider,
       model_used: modelUsed,
-      note: 'Video keyframe generated. Full video generation requires local backend with GPU.',
+      note: 'Cinematic keyframe generated with ' + modelUsed + '. Full animated video requires GPU backend.',
     });
   } catch (error: any) {
     console.error('Video generation error:', error);
