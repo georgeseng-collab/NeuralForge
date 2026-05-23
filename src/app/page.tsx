@@ -60,7 +60,7 @@ export default function Home() {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const res = await fetch('/api/health?XTransformPort=5000');
+        const res = await fetch('/api/health');
         if (res.ok) {
           const data = await res.json();
           useNeuralForgeStore.getState().updateConnectionStatus({
@@ -198,7 +198,7 @@ function ImageGenPanel() {
     setImageProgress({ isGenerating: true, currentStep: 0, totalSteps: imageSettings.steps, message: 'Starting generation...' });
 
     try {
-      const res = await fetch('/api/generate/image?XTransformPort=5000', {
+      const res = await fetch('/api/generate/image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(imageSettings),
@@ -464,7 +464,7 @@ function VideoGenPanel() {
     setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: videoSettings.duration * videoSettings.fps, message: 'Initializing video generation...' });
 
     try {
-      const res = await fetch('/api/generate/video?XTransformPort=5000', {
+      const res = await fetch('/api/generate/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(videoSettings),
@@ -1049,7 +1049,7 @@ function SettingsPanel() {
 
   const handlePing = async () => {
     try {
-      const res = await fetch('/api/health?XTransformPort=5000');
+      const res = await fetch('/api/health');
       if (res.ok) {
         const data = await res.json();
         updateConnectionStatus({
