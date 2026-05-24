@@ -26,7 +26,8 @@ export interface VideoSettings {
   socialPreset: string;
   negativePrompt: string;
   pollinationsApiKey: string;
-  videoMode: 'real' | 'free' | 'motion'; // real = Pollinations with API key, free = HuggingFace no key, motion = Ken Burns effect
+  falApiKey: string;
+  videoMode: 'real' | 'fal' | 'motion'; // real = Pollinations with API key, fal = Fal.ai free credits, motion = Ken Burns effect
   motionEffect: 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'ken-burns' | 'drift';
 }
 
@@ -184,20 +185,23 @@ export const IMAGE_MODEL_OPTIONS = [
   { id: 'p-image', name: 'P-Image', description: 'Pollinations native creative', speed: 'Fast', badge: 'Popular' },
 ] as const;
 
-// ─── Real AI Video Models (gen.pollinations.ai) ───────────────────────────
+// ─── Real AI Video Models (gen.pollinations.ai + Fal.ai) ───────────────────
 export const VIDEO_MODEL_OPTIONS = [
-  // ─── Free Models (HuggingFace, no API key) ──────────────
-  { id: 'cogvideox', name: 'CogVideoX', description: 'FREE! No API key needed, AI video by Tencent', speed: 'Slow', badge: 'Free', needsApiKey: false, maxDuration: 3 },
+  // ─── Fal.ai Models (free $10-20 credits, no CC) ──────────
+  { id: 'fal-wan', name: 'Wan 2.1 (Fal)', description: 'FREE credits! Text-to-video AI', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 5, provider: 'fal' },
+  { id: 'fal-hailuo', name: 'Hailuo 02 (Fal)', description: 'FREE credits! MiniMax Hailuo AI video', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 6, provider: 'fal' },
+  { id: 'fal-kling', name: 'Kling v1 (Fal)', description: 'FREE credits! Kling video generation', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 5, provider: 'fal' },
+  { id: 'fal-luma', name: 'Luma Dream (Fal)', description: 'FREE credits! Luma Dream Machine', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 5, provider: 'fal' },
   // ─── Pollinations Models (requires API key + credits) ──
-  { id: 'ltx-2', name: 'LTX Video 2.3', description: 'Fast AI video, cheapest credits', speed: 'Fast', badge: 'Credit', needsApiKey: true, maxDuration: 5 },
-  { id: 'nova-reel', name: 'Nova Reel', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 30 },
-  { id: 'wan-fast', name: 'Wan Fast', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, maxDuration: 5 },
-  { id: 'wan', name: 'Wan 2.6', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 15 },
-  { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'Pro', needsApiKey: true, maxDuration: 10 },
-  { id: 'seedance-2.0', name: 'Seedance 2.0', description: 'ByteDance multimodal video', speed: 'Slow', badge: 'Ultra', needsApiKey: true, maxDuration: 15 },
-  { id: 'veo', name: 'Veo 3.1', description: 'Google Veo with audio output', speed: 'Slow', badge: 'Ultra', needsApiKey: true, maxDuration: 8 },
-  { id: 'grok-video-pro', name: 'Grok Video Pro', description: 'xAI creative video, 1-15s', speed: 'Medium', badge: 'Creative', needsApiKey: true, maxDuration: 15 },
-  { id: 'p-video', name: 'Pruna Video', description: 'Up to 1080p quality', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 10 },
+  { id: 'ltx-2', name: 'LTX Video 2.3', description: 'Fast AI video, cheapest credits', speed: 'Fast', badge: 'Credit', needsApiKey: true, maxDuration: 5, provider: 'pollinations' },
+  { id: 'nova-reel', name: 'Nova Reel', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 30, provider: 'pollinations' },
+  { id: 'wan-fast', name: 'Wan Fast', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, maxDuration: 5, provider: 'pollinations' },
+  { id: 'wan', name: 'Wan 2.6', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 15, provider: 'pollinations' },
+  { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'Pro', needsApiKey: true, maxDuration: 10, provider: 'pollinations' },
+  { id: 'seedance-2.0', name: 'Seedance 2.0', description: 'ByteDance multimodal video', speed: 'Slow', badge: 'Ultra', needsApiKey: true, maxDuration: 15, provider: 'pollinations' },
+  { id: 'veo', name: 'Veo 3.1', description: 'Google Veo with audio output', speed: 'Slow', badge: 'Ultra', needsApiKey: true, maxDuration: 8, provider: 'pollinations' },
+  { id: 'grok-video-pro', name: 'Grok Video Pro', description: 'xAI creative video, 1-15s', speed: 'Medium', badge: 'Creative', needsApiKey: true, maxDuration: 15, provider: 'pollinations' },
+  { id: 'p-video', name: 'Pruna Video', description: 'Up to 1080p quality', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 10, provider: 'pollinations' },
 ] as const;
 
 // ─── Image models for Motion Video (free, no API key) ─────────────────────

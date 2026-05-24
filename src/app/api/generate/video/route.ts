@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateRealVideo, generateFreeVideo, generateMotionVideoSource } from '@/lib/ai';
+import { generateRealVideo, generateFalVideo, generateMotionVideoSource } from '@/lib/ai';
 
 export const maxDuration = 300; // 5 minutes for video generation
 
@@ -11,12 +11,13 @@ export async function POST(request: NextRequest) {
       duration = 5,
       fps = 8,
       style = 'Cinematic',
-      modelId = 'ltx-2',
+      modelId = 'fal-wan',
       width = 1344,
       height = 768,
       negativePrompt = '',
       pollinationsApiKey = '',
-      videoMode = 'real', // 'real', 'free', or 'motion'
+      falApiKey = '',
+      videoMode = 'fal', // 'real', 'fal', or 'motion'
       motionEffect = 'ken-burns',
     } = body;
 
@@ -27,7 +28,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ─── Mode 1: Real AI Video via Pollinations (requires API key + credits) ──
+    // ─── Mode 1: Fal.ai Video Generation (free $10-20 credits) ────────────
+    if (videoMode === 'fal') {
+      if (!falApiKey.trim()) {
+        return NextResponse.json({
+          detail: 'Fal.ai API key required. Sign up at fal.ai/dashboard for free $10-20 credits (no credit card needed).',
+          code: 'FAL_KEY_REQUIRED',
+        }, { status: 400 });
+      }
+
+      try {
+        const result = await generateFalVideo(
+          prompt,
+          style,
+          width,
+          height,
+          modelId,
+          falApiKey,
+          negativePrompt,
+        );
+
+        return NextResponse.json({
+          video_base64: result.videoBase64,
+          video_mime: result.mime || 'video/mp4',
+          video_url: result.videoUrl,
+          is_real_generation: true,
+          mode: 'fal-video',
+          provider: result.provider,
+          model_used: result.modelUsed,
+          duration: result.duration,
+          width: result.width,
+          height: result.height,
+          prompt,
+        });
+      } catch (error: any) {
+        console.error('[NeuralForge] Fal.ai video generation failed:', error.message);
+
+        if (error.message.includes('FAL_INVALID_KEY')) {
+          return NextResponse.json({
+            detail: 'Invalid Fal.ai API key. Please check your key at fal.ai/dashboard',
+            code: 'FAL_INVALID_KEY',
+          }, { status: 401 });
+        }
+
+        if (error.message.includes('FAL_INSUFFICIENT_CREDITS')) {
+          return NextResponse.json({
+            detail: 'Your Fal.ai credits are exhausted. Visit fal.ai/dashboard to check balance or create a new account.',
+            code: 'FAL_INSUFFICIENT_CREDITS',
+          }, { status: 402 });
+        }
+
+        return NextResponse.json({
+          detail: `Fal.ai video generation failed: ${error.message}. Try a different model or use Motion mode as fallback.`,
+          fallback_mode: 'motion',
+        }, { status: 502 });
+      }
+    }
+
+    // ─── Mode 2: Pollinations Video Generation (requires API key + credits) ──
     if (videoMode === 'real' && pollinationsApiKey) {
       try {
         const result = await generateRealVideo(
@@ -43,10 +101,10 @@ export async function POST(request: NextRequest) {
         );
 
         return NextResponse.json({
-          video_base64: result.videoBase64, // Raw base64 without data URL prefix
+          video_base64: result.videoBase64,
           video_mime: result.mime || 'video/mp4',
           is_real_generation: true,
-          mode: 'ai-video',
+          mode: 'pollinations-video',
           provider: result.provider,
           model_used: result.modelUsed,
           duration: result.duration,
@@ -55,54 +113,28 @@ export async function POST(request: NextRequest) {
           prompt,
         });
       } catch (error: any) {
-        console.error('[NeuralForge] Real video generation failed:', error.message);
+        console.error('[NeuralForge] Pollinations video generation failed:', error.message);
 
-        // If it's a credits issue, suggest alternatives
         if (error.message.includes('INSUFFICIENT_CREDITS') || error.message.includes('VIDEO_FALLBACK_IMAGE')) {
           return NextResponse.json({
-            detail: `Video generation requires credits on your Pollinations account. ${error.message}. Try the "Free AI Video" mode instead (uses HuggingFace, no credits needed).`,
-            suggestion: 'free',
+            detail: `Pollinations credits insufficient for video. ${error.message}. Try Fal.ai mode instead (free credits at fal.ai).`,
+            suggestion: 'fal',
           }, { status: 402 });
         }
 
         return NextResponse.json({
-          detail: `AI Video generation failed: ${error.message}. Try a different model or use Free AI Video mode.`,
-          fallback_mode: 'free',
+          detail: `Pollinations video generation failed: ${error.message}. Try Fal.ai mode or use Motion mode.`,
+          fallback_mode: 'motion',
         }, { status: 502 });
       }
     }
 
-    // ─── Mode 2: Free AI Video via HuggingFace (no API key needed) ──────────
-    if (videoMode === 'free' || (videoMode === 'real' && !pollinationsApiKey)) {
-      try {
-        const result = await generateFreeVideo(
-          prompt,
-          style,
-          width,
-          height,
-          negativePrompt,
-        );
-
-        return NextResponse.json({
-          video_base64: result.videoBase64,
-          video_mime: result.mime || 'video/mp4',
-          is_real_generation: true,
-          mode: 'free-ai-video',
-          provider: result.provider,
-          model_used: result.modelUsed,
-          duration: result.duration,
-          width: result.width,
-          height: result.height,
-          prompt,
-        });
-      } catch (error: any) {
-        console.error('[NeuralForge] Free video generation failed:', error.message);
-        // Fall back to motion mode
-        return NextResponse.json({
-          detail: `Free AI video generation failed: ${error.message}. Falling back to motion mode.`,
-          fallback_mode: 'motion',
-        }, { status: 502 });
-      }
+    // If real mode but no API key
+    if (videoMode === 'real' && !pollinationsApiKey) {
+      return NextResponse.json({
+        detail: 'Pollinations API key required for this mode. Enter your key or switch to Fal.ai mode (free credits).',
+        code: 'API_KEY_REQUIRED',
+      }, { status: 400 });
     }
 
     // ─── Mode 3: Motion Video (Free, No API Key) ──────────────────────────

@@ -1,13 +1,13 @@
 // ─── NeuralForge AI Engine ─────────────────────────────────────────────────
 // Uses free public AI APIs that work from Vercel serverless functions
 // Image: Pollinations.ai (free, no API key)
-// Video: Pollinations.ai (requires API key + credits) OR HuggingFace Spaces (free)
+// Video: Pollinations.ai (API key + credits) OR Fal.ai (free credits) OR Motion fallback
 
 // ─── Supported Free AI Models ──────────────────────────────────────────────
 export interface FreeAIModel {
   id: string;
   name: string;
-  provider: 'pollinations' | 'huggingface';
+  provider: 'pollinations' | 'fal';
   type: 'image' | 'video';
   description: string;
   maxResolution: string;
@@ -42,18 +42,38 @@ export const FREE_AI_MODELS: FreeAIModel[] = [
   { id: 'p-image', name: 'P-Image', provider: 'pollinations', type: 'image', description: 'Pollinations native creative', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
 ];
 
-// ─── Real Video Models (Pollinations gen.pollinations.ai) ─────────────────
-export const REAL_VIDEO_MODELS = [
-  { id: 'ltx-2', name: 'LTX Video 2.3', description: 'Fast AI video, cheapest option', speed: 'Fast', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['480p'] },
-  { id: 'nova-reel', name: 'Nova Reel', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: true, maxDuration: 30, qualities: ['720p'] },
-  { id: 'wan-fast', name: 'Wan Fast', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, free: false, maxDuration: 5, qualities: ['480p'] },
-  { id: 'wan', name: 'Wan 2.6', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 15, qualities: ['480p', '720p', '1080p'] },
-  { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'Pro', needsApiKey: true, free: false, maxDuration: 10, qualities: ['720p'] },
-  { id: 'seedance-2.0', name: 'Seedance 2.0', description: 'ByteDance multimodal video', speed: 'Slow', badge: 'Ultra', needsApiKey: true, free: false, maxDuration: 15, qualities: ['720p'] },
-  { id: 'veo', name: 'Veo 3.1', description: 'Google Veo with audio output', speed: 'Slow', badge: 'Ultra', needsApiKey: true, free: false, maxDuration: 8, qualities: ['720p', '1080p'] },
-  { id: 'grok-video-pro', name: 'Grok Video Pro', description: 'xAI creative video, 1-15s', speed: 'Medium', badge: 'Creative', needsApiKey: true, free: false, maxDuration: 15, qualities: ['720p'] },
-  { id: 'p-video', name: 'Pruna Video', description: 'Up to 1080p quality', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 10, qualities: ['720p', '1080p'] },
-] as const;
+// ─── Video Model Definitions ─────────────────────────────────────────────
+export interface VideoModelDef {
+  id: string;
+  name: string;
+  provider: 'pollinations' | 'fal';
+  description: string;
+  speed: string;
+  badge: string;
+  needsApiKey: boolean;
+  free: boolean;
+  maxDuration: number;
+  qualities: string[];
+  falModelId?: string;  // For fal.ai models
+}
+
+export const VIDEO_MODELS: VideoModelDef[] = [
+  // ─── Pollinations Video Models ─────────────────────────────
+  { id: 'ltx-2', name: 'LTX Video 2.3', provider: 'pollinations', description: 'Fast AI video, cheapest credits', speed: 'Fast', badge: 'Credit', needsApiKey: true, free: false, maxDuration: 5, qualities: ['480p'] },
+  { id: 'nova-reel', name: 'Nova Reel', provider: 'pollinations', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 30, qualities: ['720p'] },
+  { id: 'wan-fast', name: 'Wan Fast', provider: 'pollinations', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, free: false, maxDuration: 5, qualities: ['480p'] },
+  { id: 'wan', name: 'Wan 2.6', provider: 'pollinations', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 15, qualities: ['480p', '720p', '1080p'] },
+  { id: 'seedance-pro', name: 'Seedance Pro', provider: 'pollinations', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'Pro', needsApiKey: true, free: false, maxDuration: 10, qualities: ['720p'] },
+  { id: 'seedance-2.0', name: 'Seedance 2.0', provider: 'pollinations', description: 'ByteDance multimodal video', speed: 'Slow', badge: 'Ultra', needsApiKey: true, free: false, maxDuration: 15, qualities: ['720p'] },
+  { id: 'veo', name: 'Veo 3.1', provider: 'pollinations', description: 'Google Veo with audio output', speed: 'Slow', badge: 'Ultra', needsApiKey: true, free: false, maxDuration: 8, qualities: ['720p', '1080p'] },
+  { id: 'grok-video-pro', name: 'Grok Video Pro', provider: 'pollinations', description: 'xAI creative video, 1-15s', speed: 'Medium', badge: 'Creative', needsApiKey: true, free: false, maxDuration: 15, qualities: ['720p'] },
+  { id: 'p-video', name: 'Pruna Video', provider: 'pollinations', description: 'Up to 1080p quality', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 10, qualities: ['720p', '1080p'] },
+  // ─── Fal.ai Video Models (free $10-20 credits) ────────────────
+  { id: 'fal-wan', name: 'Wan 2.1 (Fal)', provider: 'fal', description: 'FREE credits! Text-to-video on Fal.ai', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['480p', '720p'], falModelId: 'fal-ai/wan/v2.1/text-to-video' },
+  { id: 'fal-hailuo', name: 'Hailuo 02 (Fal)', provider: 'fal', description: 'FREE credits! MiniMax Hailuo AI video', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 6, qualities: ['720p'], falModelId: 'fal-ai/minimax/hailuo-02' },
+  { id: 'fal-kling', name: 'Kling v1 (Fal)', provider: 'fal', description: 'FREE credits! Kling video generation', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['720p'], falModelId: 'fal-ai/kling-video/v1/standard/text-to-video' },
+  { id: 'fal-luma', name: 'Luma Dream (Fal)', provider: 'fal', description: 'FREE credits! Luma Dream Machine', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['720p'], falModelId: 'fal-ai/luma-dream-machine' },
+];
 
 // ─── Enhanced Style Enhancement Maps ────────────────────────────────────────
 const STYLE_MAP: Record<string, string> = {
@@ -111,8 +131,6 @@ function buildPollinationsUrl(
 }
 
 // ─── Pollinations.ai Video API URL Builder ──────────────────────────────────
-// Correct format: GET /video/{prompt} with Authorization header
-// Query params: model, duration, nologo, seed, aspectRatio
 function buildVideoApiUrl(
   prompt: string,
   model: string,
@@ -149,12 +167,13 @@ async function fetchImageAsBase64(url: string, timeout = 90000): Promise<string>
 }
 
 // ─── Fetch video from Pollinations API ──────────────────────────────────
-// Uses Authorization: Bearer header (NOT key= query param)
 async function fetchVideoFromPollinations(
   url: string,
   apiKey: string,
-  timeout = 300000, // 5 minutes for video generation
+  timeout = 300000,
 ): Promise<{ videoBase64: string; mime: string }> {
+  console.log(`[NeuralForge] Fetching video from Pollinations: ${url}`);
+
   const response = await fetch(url, {
     signal: AbortSignal.timeout(timeout),
     headers: {
@@ -172,7 +191,7 @@ async function fetchVideoFromPollinations(
     } catch {}
 
     if (response.status === 402) {
-      throw new Error('INSUFFICIENT_CREDITS: Your Pollinations account needs more credits for video generation. Visit pollinations.ai to add credits or wait for your free tier reset.');
+      throw new Error('INSUFFICIENT_CREDITS: Your Pollinations account needs more credits for video generation. Visit pollinations.ai to add credits or try Fal.ai mode instead.');
     }
     throw new Error(errorMsg);
   }
@@ -180,80 +199,124 @@ async function fetchVideoFromPollinations(
   // Verify we actually got a video, not an image
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('image/')) {
-    throw new Error('VIDEO_FALLBACK_IMAGE: The API returned an image instead of a video. This usually means insufficient credits. Try adding credits at pollinations.ai or use a different model.');
+    throw new Error('VIDEO_FALLBACK_IMAGE: The API returned an image instead of a video. This usually means insufficient credits. Try Fal.ai mode or add credits at pollinations.ai.');
   }
 
   const arrayBuffer = await response.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString('base64');
 
+  // Validate video file size (should be at least 10KB for a real video)
+  if (arrayBuffer.byteLength < 10000) {
+    throw new Error('VIDEO_TOO_SMALL: The generated video is too small and likely corrupted. This may be a credits issue. Try Fal.ai mode instead.');
+  }
+
+  const base64 = Buffer.from(arrayBuffer).toString('base64');
   const mime = contentType.includes('webm') ? 'video/webm' : 'video/mp4';
+  console.log(`[NeuralForge] Pollinations video received: ${arrayBuffer.byteLength} bytes, type: ${mime}`);
   return { videoBase64: base64, mime };
 }
 
-// ─── Fetch video from HuggingFace Spaces (FREE, no API key) ──────────────
-async function fetchVideoFromHuggingFace(
+// ─── Fal.ai Video Generation (free $10-20 credits) ────────────────────────
+async function generateVideoWithFal(
   prompt: string,
+  falApiKey: string,
+  falModelId: string,
   timeout = 300000,
-): Promise<{ videoBase64: string; mime: string }> {
-  // Use Hugging Face's free inference API with CogVideoX or similar model
-  // This is a FREE alternative that doesn't require an API key
-  const models = [
-    'tencent/CogVideoX-5b',
-    'tencent/CogVideoX-2b',
-  ];
+): Promise<{ videoBase64: string; mime: string; videoUrl: string }> {
+  console.log(`[NeuralForge] Submitting video job to Fal.ai model: ${falModelId}`);
 
-  let lastError: Error | null = null;
+  // Step 1: Submit the job to Fal.ai queue
+  const submitRes = await fetch(`https://queue.fal.run/${falModelId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${falApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      prompt: prompt,
+      num_frames: 41,  // ~5 seconds at 8fps
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
 
-  for (const model of models) {
-    try {
-      console.log(`[NeuralForge] Trying HuggingFace video model: ${model}`);
-      const response = await fetch(
-        `https://api-inference.huggingface.co/models/${model}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            inputs: prompt,
-            parameters: {
-              num_frames: 48,
-              num_inference_steps: 25,
-            },
-          }),
-          signal: AbortSignal.timeout(timeout),
-        },
-      );
-
-      if (response.ok) {
-        const contentType = response.headers.get('content-type') || '';
-        const arrayBuffer = await response.arrayBuffer();
-
-        // HuggingFace might return JSON error even with 200
-        if (contentType.includes('application/json')) {
-          const text = new TextDecoder().decode(arrayBuffer);
-          const data = JSON.parse(text);
-          if (data.error) {
-            lastError = new Error(data.error);
-            continue;
-          }
-        }
-
-        if (arrayBuffer.byteLength > 10000) { // Valid video should be > 10KB
-          const base64 = Buffer.from(arrayBuffer).toString('base64');
-          const mime = contentType.includes('webm') ? 'video/webm' : 'video/mp4';
-          console.log(`[NeuralForge] HuggingFace video generated successfully with ${model}`);
-          return { videoBase64: base64, mime };
-        }
-      } else {
-        const errText = await response.text().catch(() => '');
-        lastError = new Error(`HuggingFace ${model} returned ${response.status}: ${errText.slice(0, 200)}`);
-      }
-    } catch (err: any) {
-      lastError = err;
-      console.log(`[NeuralForge] HuggingFace model ${model} failed: ${err.message}`);
-    }
+  if (!submitRes.ok) {
+    const errText = await submitRes.text().catch(() => '');
+    let errorMsg = `Fal.ai returned ${submitRes.status}`;
+    try { const errData = JSON.parse(errText); errorMsg = errData.detail || errData.error || errorMsg; } catch {}
+    if (submitRes.status === 401) errorMsg = 'FAL_INVALID_KEY: Invalid Fal.ai API key. Get a free key at fal.ai/dashboard';
+    if (submitRes.status === 402) errorMsg = 'FAL_INSUFFICIENT_CREDITS: Your Fal.ai credits are exhausted. Visit fal.ai/dashboard to check balance';
+    throw new Error(errorMsg);
   }
 
-  throw new Error(lastError?.message || 'HuggingFace video generation failed');
+  const { request_id } = await submitRes.json() as { request_id: string };
+  console.log(`[NeuralForge] Fal.ai job submitted: ${request_id}`);
+
+  // Step 2: Poll for the result
+  const pollStart = Date.now();
+  const pollInterval = 5000; // 5 seconds between polls
+
+  while (Date.now() - pollStart < timeout) {
+    await new Promise(r => setTimeout(r, pollInterval));
+
+    const statusRes = await fetch(`https://queue.fal.run/${falModelId}/status/${request_id}`, {
+      headers: { 'Authorization': `Key ${falApiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!statusRes.ok) continue;
+
+    const status = await statusRes.json() as { status: string };
+
+    if (status.status === 'COMPLETED') {
+      // Step 3: Get the result
+      const resultRes = await fetch(`https://queue.fal.run/${falModelId}/requests/${request_id}`, {
+        headers: { 'Authorization': `Key ${falApiKey}` },
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!resultRes.ok) {
+        throw new Error(`Fal.ai result fetch failed: ${resultRes.status}`);
+      }
+
+      const result = await resultRes.json() as {
+        video?: { url: string };
+        output?: { video?: string };
+      };
+
+      // Extract video URL from various response formats
+      const videoUrl = result.video?.url || result.output?.video || '';
+
+      if (!videoUrl) {
+        throw new Error('Fal.ai completed but no video URL in response. The model may have changed its output format.');
+      }
+
+      console.log(`[NeuralForge] Fal.ai video URL: ${videoUrl}`);
+
+      // Step 4: Download the video and convert to base64
+      const videoRes = await fetch(videoUrl, {
+        signal: AbortSignal.timeout(120000),
+      });
+
+      if (!videoRes.ok) {
+        throw new Error(`Failed to download video from Fal.ai: ${videoRes.status}`);
+      }
+
+      const arrayBuffer = await videoRes.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      const contentType = videoRes.headers.get('content-type') || 'video/mp4';
+      const mime = contentType.includes('webm') ? 'video/webm' : 'video/mp4';
+
+      console.log(`[NeuralForge] Fal.ai video downloaded: ${arrayBuffer.byteLength} bytes`);
+      return { videoBase64: base64, mime, videoUrl };
+    }
+
+    if (status.status === 'FAILED') {
+      throw new Error('Fal.ai video generation failed. The model may be overloaded. Try again or use a different model.');
+    }
+
+    console.log(`[NeuralForge] Fal.ai job ${request_id} status: ${status.status}...`);
+  }
+
+  throw new Error('Fal.ai video generation timed out. Try a shorter video or different model.');
 }
 
 // ─── Enhanced Prompt Builder ────────────────────────────────────────────────
@@ -326,8 +389,7 @@ export async function generateImage(
   }
 }
 
-// ─── Real AI Video Generation (gen.pollinations.ai) ─────────────────────────
-// This generates ACTUAL AI video using Pollinations' video models
+// ─── Real AI Video Generation via Pollinations ──────────────────────────────
 export async function generateRealVideo(
   prompt: string,
   style: string = 'Cinematic',
@@ -354,7 +416,7 @@ export async function generateRealVideo(
   const aspectRatio = height > width ? '9:16' : width > height ? '16:9' : '1:1';
 
   // Clamp duration based on model limits
-  const modelInfo = REAL_VIDEO_MODELS.find(m => m.id === modelId);
+  const modelInfo = VIDEO_MODELS.find(m => m.id === modelId);
   const maxDuration = modelInfo?.maxDuration || 10;
   const clampedDuration = Math.min(Math.max(duration, 2), maxDuration);
 
@@ -367,52 +429,28 @@ export async function generateRealVideo(
   );
 
   console.log(`[NeuralForge] Requesting real AI video from ${modelId}, duration=${clampedDuration}s, aspect=${aspectRatio}`);
-  console.log(`[NeuralForge] Video URL: ${videoUrl}`);
 
-  try {
-    const result = await fetchVideoFromPollinations(videoUrl, apiKey, 300000);
-    return {
-      videoBase64: result.videoBase64,
-      isReal: true,
-      provider: 'pollinations-video',
-      modelUsed: modelId,
-      duration: clampedDuration,
-      width,
-      height,
-      mime: result.mime,
-    };
-  } catch (error: any) {
-    // If Pollinations fails with insufficient credits, try HuggingFace as fallback
-    if (error.message.includes('INSUFFICIENT_CREDITS') || error.message.includes('VIDEO_FALLBACK_IMAGE')) {
-      console.log(`[NeuralForge] Pollinations credits issue, trying HuggingFace as free fallback...`);
-      try {
-        const hfResult = await fetchVideoFromHuggingFace(enhancedPrompt, 300000);
-        return {
-          videoBase64: hfResult.videoBase64,
-          isReal: true,
-          provider: 'huggingface-video',
-          modelUsed: 'CogVideoX',
-          duration: clampedDuration,
-          width,
-          height,
-          mime: hfResult.mime,
-        };
-      } catch (hfError: any) {
-        console.error(`[NeuralForge] HuggingFace fallback also failed:`, hfError.message);
-        throw new Error(`Video generation failed: ${error.message}. Free HuggingFace fallback also failed: ${hfError.message}. Try again later or add credits at pollinations.ai.`);
-      }
-    }
-    console.error(`[NeuralForge] Real video generation failed:`, error.message);
-    throw error;
-  }
+  const result = await fetchVideoFromPollinations(videoUrl, apiKey, 300000);
+  return {
+    videoBase64: result.videoBase64,
+    isReal: true,
+    provider: 'pollinations-video',
+    modelUsed: modelId,
+    duration: clampedDuration,
+    width,
+    height,
+    mime: result.mime,
+  };
 }
 
-// ─── Free AI Video Generation (HuggingFace, no API key) ────────────────────
-export async function generateFreeVideo(
+// ─── Fal.ai Video Generation ────────────────────────────────────────────────
+export async function generateFalVideo(
   prompt: string,
   style: string = 'Cinematic',
   width: number = 1344,
   height: number = 768,
+  modelId: string = 'fal-wan',
+  falApiKey: string,
   negativePrompt: string = '',
 ): Promise<{
   videoBase64: string;
@@ -423,19 +461,24 @@ export async function generateFreeVideo(
   width: number;
   height: number;
   mime: string;
+  videoUrl: string;
 }> {
   const enhancedPrompt = buildEnhancedPrompt(prompt, style, negativePrompt, true);
 
-  const result = await fetchVideoFromHuggingFace(enhancedPrompt, 300000);
+  const modelInfo = VIDEO_MODELS.find(m => m.id === modelId);
+  const falModelId = modelInfo?.falModelId || 'fal-ai/wan/v2.1/text-to-video';
+
+  const result = await generateVideoWithFal(enhancedPrompt, falApiKey, falModelId, 300000);
   return {
     videoBase64: result.videoBase64,
     isReal: true,
-    provider: 'huggingface-video',
-    modelUsed: 'CogVideoX',
-    duration: 3,
+    provider: 'fal-video',
+    modelUsed: modelId,
+    duration: 5,
     width,
     height,
     mime: result.mime,
+    videoUrl: result.videoUrl,
   };
 }
 
@@ -457,10 +500,24 @@ export async function generateMotionVideoSource(
   height: number;
   mode: 'motion';
 }> {
+  // Reduce canvas size for motion video to avoid browser memory issues
+  // Max 1024 on the longest side for reliable encoding
+  const maxDim = 1024;
+  let w = width;
+  let h = height;
+  if (Math.max(w, h) > maxDim) {
+    const scale = maxDim / Math.max(w, h);
+    w = Math.round(w * scale);
+    h = Math.round(h * scale);
+  }
+  // Ensure even dimensions for video encoding
+  w = w % 2 === 0 ? w : w + 1;
+  h = h % 2 === 0 ? h : h + 1;
+
   const enhancedPrompt = buildEnhancedPrompt(prompt, style, negativePrompt, true);
   const seed = seed_base(prompt);
 
-  const url = buildPollinationsUrl(enhancedPrompt, modelId, width, height, seed);
+  const url = buildPollinationsUrl(enhancedPrompt, modelId, w, h, seed);
 
   try {
     const imageBase64 = await fetchImageAsBase64(url, 60000);
@@ -469,22 +526,22 @@ export async function generateMotionVideoSource(
       isReal: true,
       provider: 'pollinations-motion',
       modelUsed: modelId,
-      width,
-      height,
+      width: w,
+      height: h,
       mode: 'motion',
     };
   } catch (fetchErr: any) {
     console.log(`[NeuralForge] Image fetch failed for ${modelId}: ${fetchErr.message}. Trying flux fallback...`);
     try {
-      const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed);
+      const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', w, h, seed);
       const imageBase64 = await fetchImageAsBase64(fallbackUrl, 30000);
       return {
         imageBase64,
         isReal: true,
         provider: 'pollinations-motion',
         modelUsed: 'flux',
-        width,
-        height,
+        width: w,
+        height: h,
         mode: 'motion',
       };
     } catch {

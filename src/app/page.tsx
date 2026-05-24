@@ -76,9 +76,22 @@ async function encodeMotionToVideo(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
+      // Cap canvas dimensions to avoid browser memory issues (max 1024 on longest side)
+      const maxDim = 1024;
+      let cw = width;
+      let ch = height;
+      if (Math.max(cw, ch) > maxDim) {
+        const scale = maxDim / Math.max(cw, ch);
+        cw = Math.round(cw * scale);
+        ch = Math.round(ch * scale);
+      }
+      // Ensure even dimensions for video encoding
+      cw = cw % 2 === 0 ? cw : cw + 1;
+      ch = ch % 2 === 0 ? ch : ch + 1;
+
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = cw;
+      canvas.height = ch;
       const ctx = canvas.getContext('2d')!;
 
       const stream = canvas.captureStream(fps);
@@ -94,7 +107,7 @@ async function encodeMotionToVideo(
 
       const recorder = new MediaRecorder(stream, {
         mimeType,
-        videoBitsPerSecond: 8000000,
+        videoBitsPerSecond: 5000000,
       });
 
       recorder.ondataavailable = (e) => {
@@ -106,10 +119,17 @@ async function encodeMotionToVideo(
         resolve(URL.createObjectURL(blob));
       };
 
-      recorder.onerror = () => reject(new Error('Video encoding failed'));
+      recorder.onerror = (e) => {
+        console.error('[NeuralForge] MediaRecorder error:', e);
+        reject(new Error('Video encoding failed — MediaRecorder encountered an error'));
+      };
 
       const img = document.createElement('img');
-      img.crossOrigin = 'anonymous';
+      // IMPORTANT: Do NOT set crossOrigin for data: URIs — it causes CORS errors
+      // Only set crossOrigin for external URLs
+      if (!imageSrc.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
       img.onload = () => {
         recorder.start();
 
@@ -124,82 +144,88 @@ async function encodeMotionToVideo(
 
           const progress = frame / totalFrames; // 0 to 1
           ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, width, height);
+          ctx.fillRect(0, 0, cw, ch);
 
           // Calculate motion transforms based on effect
-          let dx = 0, dy = 0, dw = width, dh = height;
+          let dx = 0, dy = 0, dw = cw, dh = ch;
           const padding = 0.15; // 15% extra image area for motion
 
           switch (effect) {
             case 'zoom-in': {
               const scale = 1 + progress * padding * 2;
-              const iw = width * scale;
-              const ih = height * scale;
-              dx = (width - iw) / 2;
-              dy = (height - ih) / 2;
+              const iw = cw * scale;
+              const ih = ch * scale;
+              dx = (cw - iw) / 2;
+              dy = (ch - ih) / 2;
               dw = iw;
               dh = ih;
               break;
             }
             case 'zoom-out': {
               const scale = 1 + (1 - progress) * padding * 2;
-              const iw = width * scale;
-              const ih = height * scale;
-              dx = (width - iw) / 2;
-              dy = (height - ih) / 2;
+              const iw = cw * scale;
+              const ih = ch * scale;
+              dx = (cw - iw) / 2;
+              dy = (ch - ih) / 2;
               dw = iw;
               dh = ih;
               break;
             }
             case 'pan-left': {
-              const panAmount = padding * width;
+              const panAmount = padding * cw;
               const scale = 1 + padding;
               dx = -progress * panAmount;
-              dy = -(height * scale - height) / 2;
-              dw = width * scale;
-              dh = height * scale;
+              dy = -(ch * scale - ch) / 2;
+              dw = cw * scale;
+              dh = ch * scale;
               break;
             }
             case 'pan-right': {
-              const panAmount = padding * width;
+              const panAmount = padding * cw;
               const scale = 1 + padding;
-              dx = -(width * scale - width) + progress * panAmount;
-              dy = -(height * scale - height) / 2;
-              dw = width * scale;
-              dh = height * scale;
+              dx = -(cw * scale - cw) + progress * panAmount;
+              dy = -(ch * scale - ch) / 2;
+              dw = cw * scale;
+              dh = ch * scale;
               break;
             }
             case 'ken-burns': {
-              // Simplified Ken Burns: zoom in + slight pan
               const s = 1 + progress * padding * 1.5;
-              dx = (width - width * s) / 2 + progress * padding * width * 0.3;
-              dy = (height - height * s) / 2 + progress * padding * height * 0.15;
-              dw = width * s;
-              dh = height * s;
+              dx = (cw - cw * s) / 2 + progress * padding * cw * 0.3;
+              dy = (ch - ch * s) / 2 + progress * padding * ch * 0.15;
+              dw = cw * s;
+              dh = ch * s;
               break;
             }
             case 'drift': {
-              const driftX = Math.sin(progress * Math.PI * 2) * padding * width * 0.3;
-              const driftY = Math.cos(progress * Math.PI * 1.5) * padding * height * 0.2;
+              const driftX = Math.sin(progress * Math.PI * 2) * padding * cw * 0.3;
+              const driftY = Math.cos(progress * Math.PI * 1.5) * padding * ch * 0.2;
               const scale = 1 + padding * 0.5;
-              dx = (width - width * scale) / 2 + driftX;
-              dy = (height - height * scale) / 2 + driftY;
-              dw = width * scale;
-              dh = height * scale;
+              dx = (cw - cw * scale) / 2 + driftX;
+              dy = (ch - ch * scale) / 2 + driftY;
+              dw = cw * scale;
+              dh = ch * scale;
               break;
             }
           }
 
           ctx.drawImage(img, dx, dy, dw, dh);
           frame++;
-          requestAnimationFrame(renderFrame);
+
+          // Use setTimeout instead of requestAnimationFrame for more consistent timing
+          // requestAnimationFrame runs at ~60fps which can cause timing issues
+          setTimeout(renderFrame, 1000 / fps);
         };
 
         renderFrame();
       };
-      img.onerror = () => reject(new Error('Failed to load image'));
+      img.onerror = () => {
+        console.error('[NeuralForge] Image load failed for motion encoding. src length:', imageSrc?.length);
+        reject(new Error('Failed to load image for motion encoding. The image data may be corrupted or too large.'));
+      };
       img.src = imageSrc;
     } catch (err) {
+      console.error('[NeuralForge] Motion encoding setup error:', err);
       reject(err);
     }
   });
@@ -721,7 +747,12 @@ function VideoGenPanel() {
 
     // Validate API key for real mode
     if (videoSettings.videoMode === 'real' && !videoSettings.pollinationsApiKey.trim()) {
-      toast.error('API key required for AI Video mode. Get a free key at enter.pollinations.ai');
+      toast.error('Pollinations API key required. Get a key at enter.pollinations.ai or use Fal.ai mode (free credits).');
+      return;
+    }
+    // Validate API key for fal mode
+    if (videoSettings.videoMode === 'fal' && !videoSettings.falApiKey.trim()) {
+      toast.error('Fal.ai API key required. Sign up at fal.ai/dashboard for free $10-20 credits.');
       return;
     }
 
@@ -843,11 +874,11 @@ function VideoGenPanel() {
           <p className="text-sm text-zinc-500">Create AI videos for Reels, YouTube, TikTok & more</p>
         </div>
         <Badge className={`ml-auto border-0 ${
-          videoSettings.videoMode === 'free' ? 'bg-emerald-600/20 text-emerald-300' :
+          videoSettings.videoMode === 'fal' ? 'bg-emerald-600/20 text-emerald-300' :
           videoSettings.videoMode === 'real' ? 'bg-purple-600/20 text-purple-300' :
           'bg-amber-600/20 text-amber-300'
         }`}>
-          {videoSettings.videoMode === 'free' ? <><Globe className="w-3 h-3 mr-1" /> Free AI</> :
+          {videoSettings.videoMode === 'fal' ? <><Globe className="w-3 h-3 mr-1" /> Fal.ai Free</> :
             videoSettings.videoMode === 'real' ? <><Key className="w-3 h-3 mr-1" /> Pollinations</> :
             <><Camera className="w-3 h-3 mr-1" /> Motion</>
           }
@@ -864,21 +895,21 @@ function VideoGenPanel() {
               </Label>
               <div className="grid grid-cols-3 gap-2">
                 <button
-                  onClick={() => updateVideoSettings({ videoMode: 'free', modelId: VIDEO_MODEL_OPTIONS.find(m => !m.needsApiKey)?.id || 'cogvideox' })}
+                  onClick={() => updateVideoSettings({ videoMode: 'fal', modelId: VIDEO_MODEL_OPTIONS.find(m => m.provider === 'fal')?.id || 'fal-wan' })}
                   className={`text-left p-3 rounded-lg border transition-all duration-150
-                    ${videoSettings.videoMode === 'free'
+                    ${videoSettings.videoMode === 'fal'
                       ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
                       : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
                     }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Globe className="w-4 h-4 text-emerald-400" />
-                    <span className="text-sm font-medium text-zinc-200">Free AI Video</span>
+                    <span className="text-sm font-medium text-zinc-200">Fal.ai Free</span>
                   </div>
-                  <p className="text-[10px] text-zinc-500">CogVideoX — No API key needed</p>
+                  <p className="text-[10px] text-zinc-500">Free $10-20 credits, real AI video</p>
                 </button>
                 <button
-                  onClick={() => updateVideoSettings({ videoMode: 'real', modelId: VIDEO_MODEL_OPTIONS.find(m => m.needsApiKey)?.id || 'ltx-2' })}
+                  onClick={() => updateVideoSettings({ videoMode: 'real', modelId: VIDEO_MODEL_OPTIONS.find(m => m.provider === 'pollinations')?.id || 'ltx-2' })}
                   className={`text-left p-3 rounded-lg border transition-all duration-150
                     ${videoSettings.videoMode === 'real'
                       ? 'bg-purple-600/20 border-purple-500/50 shadow-lg shadow-purple-500/10'
@@ -887,7 +918,7 @@ function VideoGenPanel() {
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Bolt className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm font-medium text-zinc-200">Pollinations AI</span>
+                    <span className="text-sm font-medium text-zinc-200">Pollinations</span>
                   </div>
                   <p className="text-[10px] text-zinc-500">API key + credits, more models</p>
                 </button>
@@ -903,13 +934,45 @@ function VideoGenPanel() {
                     <Camera className="w-4 h-4 text-amber-400" />
                     <span className="text-sm font-medium text-zinc-200">Motion Video</span>
                   </div>
-                  <p className="text-[10px] text-zinc-500">Ken Burns effects on AI image</p>
+                  <p className="text-[10px] text-zinc-500">Ken Burns effects, no key needed</p>
                 </button>
               </div>
             </CardContent>
           </Card>
 
-          {/* API Key Field (only for real mode) */}
+          {/* API Key Field (for Fal.ai or Pollinations mode) */}
+          {videoSettings.videoMode === 'fal' && (
+            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+              <CardContent className="p-4">
+                <Label className="text-zinc-300 mb-2 block text-sm font-semibold flex items-center gap-2">
+                  <Key className="w-4 h-4 text-emerald-400" /> Fal.ai API Key
+                </Label>
+                <div className="relative">
+                  <Input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={videoSettings.falApiKey}
+                    onChange={(e) => updateVideoSettings({ falApiKey: e.target.value })}
+                    placeholder="Enter your Fal.ai API key..."
+                    className="bg-zinc-800/50 border-zinc-700 pr-10"
+                  />
+                  <button
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <a
+                  href="https://fal.ai/dashboard/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-emerald-400 hover:text-emerald-300 mt-2 inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" /> Get free key at fal.ai — $10-20 free credits, no CC needed
+                </a>
+              </CardContent>
+            </Card>
+          )}
           {videoSettings.videoMode === 'real' && (
             <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
               <CardContent className="p-4">
@@ -943,7 +1006,13 @@ function VideoGenPanel() {
             </Card>
           )}
 
-          {/* No API key warning for real mode */}
+          {/* No API key warnings */}
+          {videoSettings.videoMode === 'fal' && !videoSettings.falApiKey.trim() && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-600/10 border border-emerald-600/30">
+              <AlertTriangle className="w-4 h-4 text-emerald-400 shrink-0" />
+              <p className="text-xs text-emerald-300">Fal.ai API key required. <a href="https://fal.ai/dashboard/keys" target="_blank" rel="noopener noreferrer" className="underline">Get free $10-20 credits</a> — no credit card needed!</p>
+            </div>
+          )}
           {videoSettings.videoMode === 'real' && !videoSettings.pollinationsApiKey.trim() && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-600/10 border border-amber-600/30">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -979,15 +1048,15 @@ function VideoGenPanel() {
             </CardContent>
           </Card>
 
-          {/* Model Selector — different for free vs real vs motion */}
-          {videoSettings.videoMode === 'free' ? (
+          {/* Model Selector — different for fal vs real vs motion */}
+          {videoSettings.videoMode === 'fal' ? (
             <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
               <CardContent className="p-4">
                 <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
-                  <Video className="w-4 h-4 text-emerald-400" /> Free AI Video Model
+                  <Video className="w-4 h-4 text-emerald-400" /> Fal.ai Video Model
                 </Label>
                 <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                  {VIDEO_MODEL_OPTIONS.filter(m => !m.needsApiKey).map((model) => (
+                  {VIDEO_MODEL_OPTIONS.filter(m => m.provider === 'fal').map((model) => (
                     <button
                       key={model.id}
                       onClick={() => updateVideoSettings({ modelId: model.id })}
@@ -1016,7 +1085,7 @@ function VideoGenPanel() {
                   <Video className="w-4 h-4 text-purple-400" /> AI Video Model
                 </Label>
                 <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                  {VIDEO_MODEL_OPTIONS.filter(m => m.needsApiKey).map((model) => (
+                  {VIDEO_MODEL_OPTIONS.filter(m => m.provider === 'pollinations').map((model) => (
                     <button
                       key={model.id}
                       onClick={() => updateVideoSettings({ modelId: model.id })}
@@ -1114,11 +1183,11 @@ function VideoGenPanel() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-zinc-300">Duration{videoSettings.videoMode === 'free' ? ' (max 3s)' : ''}</Label>
-                  <Select value={`${Math.min(videoSettings.duration, videoSettings.videoMode === 'free' ? 3 : videoSettings.duration)}`} onValueChange={(v) => {
+                  <Label className="text-zinc-300">Duration{videoSettings.videoMode === 'fal' ? ' (max 5-6s)' : ''}</Label>
+                  <Select value={`${Math.min(videoSettings.duration, videoSettings.videoMode === 'fal' ? 6 : videoSettings.duration)}`} onValueChange={(v) => {
                     const val = Number(v);
-                    if (videoSettings.videoMode === 'free') {
-                      updateVideoSettings({ duration: Math.min(val, 3) });
+                    if (videoSettings.videoMode === 'fal') {
+                      updateVideoSettings({ duration: Math.min(val, 6) });
                     } else {
                       updateVideoSettings({ duration: val });
                     }
@@ -1128,7 +1197,7 @@ function VideoGenPanel() {
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-800 border-zinc-700">
                       {DURATION_OPTIONS
-                        .filter(d => videoSettings.videoMode !== 'free' || d <= 3)
+                        .filter(d => videoSettings.videoMode !== 'fal' || d <= 6)
                         .map((d) => (
                         <SelectItem key={d} value={`${d}`}>{d}s</SelectItem>
                       ))}
@@ -1154,9 +1223,9 @@ function VideoGenPanel() {
                 <Video className="w-3.5 h-3.5" />
                 {videoSettings.videoMode === 'motion'
                   ? `${videoSettings.duration}s motion video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · ${videoSettings.motionEffect}`
-                  : videoSettings.videoMode === 'free'
-                    ? `Free AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · max 3s`
-                    : `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'})`
+                  : videoSettings.videoMode === 'fal'
+                    ? `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · max 5-6s · Fal.ai`
+                    : `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · Pollinations`
                 }
               </div>
 
@@ -1166,7 +1235,7 @@ function VideoGenPanel() {
                 className={`w-full text-white font-semibold h-12 text-base shadow-lg ${
                   videoSettings.videoMode === 'motion'
                     ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-500/20'
-                    : videoSettings.videoMode === 'free'
+                    : videoSettings.videoMode === 'fal'
                       ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20'
                       : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-500/20'
                 }`}
@@ -1175,7 +1244,7 @@ function VideoGenPanel() {
                   <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message || 'Encoding...'}</>
                 ) : (
                   <><Film className="w-5 h-5 mr-2" /> {
-                    videoSettings.videoMode === 'free' ? 'Generate Free AI Video' :
+                    videoSettings.videoMode === 'fal' ? 'Generate AI Video (Fal.ai)' :
                     videoSettings.videoMode === 'real' ? 'Generate AI Video' :
                     'Generate Motion Video'
                   }</>
@@ -1186,7 +1255,7 @@ function VideoGenPanel() {
                 <div className="space-y-2">
                   <Progress value={isEncoding ? 75 : 50} className="h-2 animate-pulse" />
                   <p className="text-xs text-zinc-500 text-center">
-                    {isEncoding ? 'Encoding motion video...' : videoSettings.videoMode === 'motion' ? 'Generating source image... 10-30 seconds' : videoSettings.videoMode === 'free' ? 'AI video generation... 60-180 seconds' : 'Generating AI video... 30-120 seconds'}
+                    {isEncoding ? 'Encoding motion video...' : videoSettings.videoMode === 'motion' ? 'Generating source image... 10-30 seconds' : videoSettings.videoMode === 'fal' ? 'Generating AI video (Fal.ai)... 30-120 seconds' : 'Generating AI video (Pollinations)... 30-120 seconds'}
                   </p>
                 </div>
               )}
@@ -1201,8 +1270,8 @@ function VideoGenPanel() {
                 <Video className="w-4 h-4" /> Video Preview
                 {videoSettings.videoMode === 'motion' ? (
                   <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">{videoSettings.motionEffect}</Badge>
-                ) : videoSettings.videoMode === 'free' ? (
-                  <Badge className="text-[9px] bg-emerald-600/20 text-emerald-300 border-0 ml-auto">CogVideoX</Badge>
+                ) : videoSettings.videoMode === 'fal' ? (
+                  <Badge className="text-[9px] bg-emerald-600/20 text-emerald-300 border-0 ml-auto">Fal.ai</Badge>
                 ) : selectedVideoModel ? (
                   <Badge className="text-[9px] bg-purple-600/20 text-purple-300 border-0 ml-auto">{selectedVideoModel.name}</Badge>
                 ) : null}
@@ -1230,7 +1299,7 @@ function VideoGenPanel() {
                     <p className="text-sm">{videoProgress.message || 'Generating AI video...'}</p>
                     <p className="text-xs mt-1 text-zinc-600">
                       {videoSettings.videoMode === 'motion' ? 'Generating source image... 10-30 seconds' :
-                       videoSettings.videoMode === 'free' ? 'AI video generation... 60-180 seconds' :
+                       videoSettings.videoMode === 'fal' ? 'AI video generation (Fal.ai)... 30-120 seconds' :
                        'AI video generation... 30-120 seconds'}
                     </p>
                   </div>
