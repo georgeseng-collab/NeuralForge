@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://pollinations.ai",
+    "name": "hello — pollinations.ai",
+    "snippet": "Build with one API for text, image, audio, and video. We handle the models and infrastructure. Users spend across apps. Earn rewards.",
+    "host_name": "pollinations.ai",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/pollinations/pollinations",
+    "name": "pollinations/pollinations: Your Friendly Open-Source Gen-AI Platform",
+    "snippet": "We've launched https://gen.pollinations.ai — a single endpoint for all your AI generation needs: text, images, audio, video — all in one place. What's New.\npollinations.ai is an open-source generative AI platform based in Berlin, powering 500+ community projects with accessible text, image, video, and audio ...",
+    "host_name": "github.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://gen.pollinations.ai/docs",
+    "name": "Pollinations API Reference - Pollinations.ai",
+    "snippet": "Generate text, images, video, audio, and embeddings with a single API. ... Generate videos from text prompts or reference images. Returns MP4. https://gen ...\nGenerate text, images, video, audio, and embeddings with a single API. OpenAI-compatible — use any OpenAI SDK by changing the base URL. Base URL: https://gen.",
+    "host_name": "gen.pollinations.ai",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pollinations.ai/play",
+    "name": "play — pollinations.ai",
+    "snippet": "Generate images, text, audio and video with state-of-the-art AI models. Home · Play · Apps · Community · API Docs. Enable JavaScript for full functionality.",
+    "host_name": "pollinations.ai",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=7J7YowrN4aY",
+    "name": "Pollinations AI FREE API Unlimited FREE Claude, GPT  - YouTube",
+    "snippet": "https://pollinations.ai/ Watch My Visual Studio Code IDE Setup Video For Fonts,Themes & Extensions https://youtu.be/Bon8Pm1gbX8 Hi Join the ...",
+    "host_name": "www.youtube.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pollinations.ai/apps",
+    "name": "apps — pollinations.ai",
+    "snippet": "Generate images from text prompts using the Pollinations AI API and receive AI-created visuals for creative projects. BUZZ. by@Shanto-Islam Android.",
+    "host_name": "pollinations.ai",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://aitools.aiting.com/ai/pollinations",
+    "name": "Pollinations AI: Open-Source Text & Image Generation API - AiTing AI",
+    "snippet": "For text tasks, use the text endpoint to create captions, tags, or prompt variations. Optionally self-host components for tighter control ...\nPollinations AI is an open-source platform for AI-native creativity that offers easy-to-use text and image generation APIs. It lets developers ...",
+    "host_name": "aitools.aiting.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pollinations-ai.com",
+    "name": "Pollinations AI: Free AI Image Generator (Flux) — No Login | USA",
+    "snippet": "It offers image, text, audio, and video through APIs such as gen.pollinations.ai, with models like Flux, GPT Image, Seedream, Claude, and Gemini. This website ...",
+    "host_name": "pollinations-ai.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://raw.githubusercontent.com/pollinations/pollinations/master/APIDOCS.md",
+    "name": "https://raw.githubusercontent.com/pollinations/pol",
+    "snippet": "### Advanced Text Generation (OpenAI Compatible) **Endpoint**: `POST https://text.pollinations.ai/openai` This is a more powerful way to interact with the API, ...",
+    "host_name": "raw.githubusercontent.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/pollinations/pollinations/blob/main/APIDOCS.md",
+    "name": "pollinations/APIDOCS.md at main - GitHub",
+    "snippet": "Pollinations API. OpenAPI Version: 3.1.0; API Version: 0.3.0. Introduction. Generate text, images, video, audio, and embeddings with a single API. OpenAI ...",
+    "host_name": "github.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

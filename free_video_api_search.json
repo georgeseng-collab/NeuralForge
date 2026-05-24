@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://apipheny.io/free-api",
+    "name": "Free API – 90+ Public APIs For Testing [No Key] - Apipheny",
+    "snippet": "Here are a few of the best, unrestricted, free APIs for testing. They don't require a key, so you can test the sample URLs out on your browser.",
+    "host_name": "apipheny.io",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developers.openai.com/api/docs/guides/video-generation",
+    "name": "Video generation with Sora | OpenAI API",
+    "snippet": "The Sora 2 video generation models and Videos API are deprecated and will shut down on September 24, 2026. This affects Videos API, sora-2 , sora-2-pro , sora-2 ...",
+    "host_name": "developers.openai.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://videoai.me/blog/ai-video-api-for-mobile-apps-builders-2026",
+    "name": "AI Video API for Mobile App Builders (2026) | VIDEOAI.ME",
+    "snippet": "How mobile app teams use AI video APIs in 2026 for in-app onboarding, personalized welcomes, A/B tested creatives, and push retention.",
+    "host_name": "videoai.me",
+    "rank": 2,
+    "date": "May 21, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://creatify.ai/blog/most-powerful-ai-video-generation-apis",
+    "name": "6 Most Powerful AI Video Generation APIs in 2026 - Creatify AI",
+    "snippet": "The most powerful AI video generator APIs in 2026 compared: Google Veo, Runway, Creatify, and more. Find the right text to video AI API for ...",
+    "host_name": "creatify.ai",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.assemblyai.com/blog/the-top-free-speech-to-text-apis-and-open-source-engines",
+    "name": "The top free speech-to-text APIs, AI models, and open source engines",
+    "snippet": "This post compares the best free Speech-to-Text APIs and AI models on the market today, including APIs that have a free tier.",
+    "host_name": "www.assemblyai.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://zsky.ai/blog/ai-video-api-free-2026",
+    "name": "ZSky AI Video Generation API — Max-Tier REST Spec (2026)",
+    "snippet": "AI APIs Without API Keys (Free, 2026). AI video and image APIs you can use without complex authentication. Free tiers, instant access, and ...",
+    "host_name": "zsky.ai",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=JuSU7VTlmII",
+    "name": "FREE and Unlimited Text-To-Video AI is Here! Full Tutorials (Easy",
+    "snippet": "In this video, we look at 3 different methods to generate AI text-to-video easily. First, we look at Gen2, which is now publicly available ...",
+    "host_name": "www.youtube.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://strapi.io/blog/ai-apis-developers-comparison",
+    "name": "Technical Comparison: Top 7 AI APIs for Full-Stack Developers",
+    "snippet": "Compare the best AI APIs for developers. In-depth analysis of OpenAI, Anthropic, Google Gemini, and AWS Bedrock pricing, features, ...",
+    "host_name": "strapi.io",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.alibabacloud.com/help/en/model-studio/text-to-video-api-reference",
+    "name": "Alibaba Cloud Model Studio:Wan - text-to-video API reference",
+    "snippet": "Build production-ready text-to-video pipelines with the Wan model using wanx-text-to-video-turbo via DashScope SDK or HTTP.",
+    "host_name": "www.alibabacloud.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.levo.ai/resources/blogs/top-10-api-documentation-tools-2026",
+    "name": "Top 10 API Documentation Tools (2026) - Levo.ai",
+    "snippet": "Discover Top 10 API Documentation Tools of 2026 for automated spec generation, real time updates, and seamless integration across modern API ...",
+    "host_name": "www.levo.ai",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

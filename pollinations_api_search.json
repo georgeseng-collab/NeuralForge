@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://gen.pollinations.ai/docs",
+    "name": "Pollinations API Reference - Pollinations.ai",
+    "snippet": "All generation requests require an API key from enter.pollinations.ai. Model listing endpoints work without authentication. Two key types: Type, Prefix, Use ...",
+    "host_name": "gen.pollinations.ai",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/pollinations/pollinations/blob/main/APIDOCS.md",
+    "name": "pollinations/APIDOCS.md at main - GitHub",
+    "snippet": "Generate text responses using AI models. Fully compatible with the OpenAI Chat Completions API — use any OpenAI SDK by pointing it to https://gen.pollinations.",
+    "host_name": "github.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pollinations.ai",
+    "name": "hello — pollinations.ai",
+    "snippet": "Build an AI app. ⚡ Build with one API for text, image, audio, and video. We handle the models and infrastructure. Users spend across apps.",
+    "host_name": "pollinations.ai",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=7J7YowrN4aY",
+    "name": "Pollinations AI FREE API Unlimited FREE Claude, GPT  - YouTube",
+    "snippet": "https://pollinations.ai/ Watch My Visual Studio Code IDE Setup Video For Fonts,Themes & Extensions https://youtu.be/Bon8Pm1gbX8 Hi Join the ...",
+    "host_name": "www.youtube.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pollinations.ai/play",
+    "name": "play — pollinations.ai",
+    "snippet": "Generate images, text, audio and video with state-of-the-art AI models. Home · Play · Apps · Community · API Docs. Enable JavaScript for full functionality.",
+    "host_name": "pollinations.ai",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/pollinations/pollinations",
+    "name": "pollinations/pollinations: Your Friendly Open-Source Gen-AI Platform",
+    "snippet": "Get started at enter.pollinations.ai and check out the API docs. Latest ... generate video transitions across the Seedance, Veo, and Wan-Fast models.",
+    "host_name": "github.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/perchance/comments/1pgr63g/help_with_pollinations_ai",
+    "name": "Help with Pollinations AI : r/perchance - Reddit",
+    "snippet": "I'm a registered user on Pollinations, have the right API Key and credits and I don't exactly know what to do here. P.S. the ACC was the dark ...",
+    "host_name": "www.reddit.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://raw.githubusercontent.com/pollinations/pollinations/master/APIDOCS.md",
+    "name": "https://raw.githubusercontent.com/pollinations/pol",
+    "snippet": "### Advanced Text Generation (OpenAI Compatible) **Endpoint**: `POST https://text.pollinations.ai/openai` This is a more powerful way to interact with the API, ...",
+    "host_name": "raw.githubusercontent.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://community.appinventor.mit.edu/t/ai-image-generation-using-pollinations-ai-api/111063",
+    "name": "AI Image Generation using pollinations.ai API - Extensions",
+    "snippet": "The AI Image Generator extension empowers you to seamlessly create AI-generated images leveraging the capabilities of pollination.ai.",
+    "host_name": "community.appinventor.mit.edu",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pollinations-ai.com",
+    "name": "Pollinations AI: Free AI Image Generator (Flux) — No Login | USA",
+    "snippet": "Pollinations AI is an open-source generative AI ecosystem (based in Berlin) used by hundreds of community projects. It offers image, text, audio, and video ...",
+    "host_name": "pollinations-ai.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

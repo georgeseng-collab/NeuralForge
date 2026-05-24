@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://replicate.com/collections/text-to-video",
+    "name": "Use AI to generate videos via API - Replicate",
+    "snippet": "Run popular AI models like Veo 3, Wan 2.1, PixVerse v4, and Hailuo 02 to create and edit videos from text. Just type your prompt to start.",
+    "host_name": "replicate.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://replicate.com",
+    "name": "Replicate - Run AI with an API",
+    "snippet": "Run AI with an API. Run and fine-tune models. Deploy custom models. All with one line of code. Get started for free. Node Python HTTP. import Replicate from",
+    "host_name": "replicate.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=bh_4kb7nuAM",
+    "name": "Generate AI Images & Videos WITHOUT Monthly Fees - Here's How!",
+    "snippet": "Let me show you a platform where you can generate AI images, generate AI videos (and do a lot more with AI) without paying a monthly ...",
+    "host_name": "www.youtube.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/generativeAI/comments/1rzim0a/ok_guys_since_its_hard_to_find_an_unlimited_ai",
+    "name": "Ok guys since its hard to find an unlimited AI video generator for free",
+    "snippet": "Runway has a subscription plan that allows you to use their AI video gen models unlimited. You don't get priority generation access unless you ...",
+    "host_name": "www.reddit.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://replicate.com/pricing",
+    "name": "Pricing - Replicate",
+    "snippet": "Accelerated inference for Wan 2.1 14B image to video, a comprehensive and open suite of video foundation models that pushes the boundaries of video generation.",
+    "host_name": "replicate.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  }
+]
