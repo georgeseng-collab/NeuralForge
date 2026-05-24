@@ -27,7 +27,8 @@ export interface VideoSettings {
   negativePrompt: string;
   pollinationsApiKey: string;
   falApiKey: string;
-  videoMode: 'real' | 'fal' | 'motion'; // real = Pollinations with API key, fal = Fal.ai free credits, motion = Ken Burns effect
+  replicateApiKey: string;
+  videoMode: 'real' | 'fal' | 'replicate' | 'motion'; // real = Pollinations with API key, fal = Fal.ai free credits, replicate = Replicate free credits, motion = Ken Burns effect
   motionEffect: 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'ken-burns' | 'drift';
 }
 
@@ -185,8 +186,13 @@ export const IMAGE_MODEL_OPTIONS = [
   { id: 'p-image', name: 'P-Image', description: 'Pollinations native creative', speed: 'Fast', badge: 'Popular' },
 ] as const;
 
-// ─── Real AI Video Models (gen.pollinations.ai + Fal.ai) ───────────────────
+// ─── Real AI Video Models (gen.pollinations.ai + Fal.ai + Replicate) ────────
 export const VIDEO_MODEL_OPTIONS = [
+  // ─── Replicate Models (free credits for new users, no CC) ─
+  { id: 'replicate-luma', name: 'Luma Dream (Replicate)', description: 'FREE credits! Luma Dream Machine', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 5, provider: 'replicate' },
+  { id: 'replicate-wan', name: 'Wan 2.1 (Replicate)', description: 'FREE credits! Wan text-to-video', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 5, provider: 'replicate' },
+  { id: 'replicate-kling', name: 'Kling v1 (Replicate)', description: 'FREE credits! Kling video gen', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 5, provider: 'replicate' },
+  { id: 'replicate-hailuo', name: 'Hailuo (Replicate)', description: 'FREE credits! MiniMax Hailuo', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 6, provider: 'replicate' },
   // ─── Fal.ai Models (free $10-20 credits, no CC) ──────────
   { id: 'fal-wan', name: 'Wan 2.1 (Fal)', description: 'FREE credits! Text-to-video AI', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 5, provider: 'fal' },
   { id: 'fal-hailuo', name: 'Hailuo 02 (Fal)', description: 'FREE credits! MiniMax Hailuo AI video', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 6, provider: 'fal' },

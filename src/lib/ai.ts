@@ -73,6 +73,11 @@ export const VIDEO_MODELS: VideoModelDef[] = [
   { id: 'fal-hailuo', name: 'Hailuo 02 (Fal)', provider: 'fal', description: 'FREE credits! MiniMax Hailuo AI video', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 6, qualities: ['720p'], falModelId: 'fal-ai/minimax/hailuo-02' },
   { id: 'fal-kling', name: 'Kling v1 (Fal)', provider: 'fal', description: 'FREE credits! Kling video generation', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['720p'], falModelId: 'fal-ai/kling-video/v1/standard/text-to-video' },
   { id: 'fal-luma', name: 'Luma Dream (Fal)', provider: 'fal', description: 'FREE credits! Luma Dream Machine', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['720p'], falModelId: 'fal-ai/luma-dream-machine' },
+  // ─── Replicate Video Models (free credits for new users) ─────
+  { id: 'replicate-luma', name: 'Luma Dream (Replicate)', provider: 'replicate', description: 'FREE credits! Luma Dream Machine on Replicate', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['720p'] },
+  { id: 'replicate-wan', name: 'Wan 2.1 (Replicate)', provider: 'replicate', description: 'FREE credits! Wan text-to-video on Replicate', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['720p'] },
+  { id: 'replicate-kling', name: 'Kling v1 (Replicate)', provider: 'replicate', description: 'FREE credits! Kling video on Replicate', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 5, qualities: ['720p'] },
+  { id: 'replicate-hailuo', name: 'Hailuo (Replicate)', provider: 'replicate', description: 'FREE credits! MiniMax Hailuo on Replicate', speed: 'Medium', badge: 'Free', needsApiKey: true, free: true, maxDuration: 6, qualities: ['720p'] },
 ];
 
 // ─── Enhanced Style Enhancement Maps ────────────────────────────────────────
@@ -148,6 +153,89 @@ function buildVideoApiUrl(
   return `https://gen.pollinations.ai/video/${encodedPrompt}?${params.toString()}`;
 }
 
+// ─── Replicate Video Generation (free credits for new users) ────────────────
+async function generateVideoWithReplicate(
+  prompt: string,
+  replicateApiKey: string,
+  model: string = 'luma-dream-machine',
+  timeout = 300000,
+): Promise<{ videoBase64: string; mime: string; videoUrl: string }> {
+  console.log(`[NeuralForge] Submitting video job to Replicate model: ${model}`);
+
+  // Model mapping for Replicate
+  const REPLICATE_MODELS: Record<string, { version: string; owner: string; name: string }> = {
+    'luma-dream-machine': { version: '', owner: 'luma', name: 'dream-machine' },
+    'wan-v2.1': { version: '', owner: 'wan-ai', name: 'wan2.1-t2v-14b' },
+    'minimax-hailuo': { version: '', owner: 'minimax', name: 'video-01' },
+    'kling-v1': { version: '', owner: 'kwai-vgi', name: 'kling-v1.0-pro' },
+  };
+
+  const modelInfo = REPLICATE_MODELS[model] || REPLICATE_MODELS['luma-dream-machine'];
+
+  // Step 1: Create prediction
+  const createRes = await fetch('https://api.replicate.com/v1/predictions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${replicateApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: `${modelInfo.owner}/${modelInfo.name}`,
+      input: { prompt },
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!createRes.ok) {
+    const errText = await createRes.text().catch(() => '');
+    let errorMsg = `Replicate returned ${createRes.status}`;
+    try { const errData = JSON.parse(errText); errorMsg = errData.detail || errData.error || errorMsg; } catch {}
+    if (createRes.status === 401) errorMsg = 'REPLICATE_INVALID_KEY: Invalid Replicate API key. Get a free key at replicate.com';
+    if (createRes.status === 402) errorMsg = 'REPLICATE_INSUFFICIENT_CREDITS: Your Replicate credits are exhausted. Visit replicate.com to check balance';
+    throw new Error(errorMsg);
+  }
+
+  const prediction = await createRes.json() as { id: string; status: string; urls: { get: string } };
+  console.log(`[NeuralForge] Replicate prediction created: ${prediction.id}`);
+
+  // Step 2: Poll for result
+  const pollStart = Date.now();
+  while (Date.now() - pollStart < timeout) {
+    await new Promise(r => setTimeout(r, 5000));
+
+    const statusRes = await fetch(prediction.urls.get, {
+      headers: { 'Authorization': `Bearer ${replicateApiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!statusRes.ok) continue;
+    const status = await statusRes.json() as { status: string; output?: string | string[]; error?: string };
+
+    if (status.status === 'succeeded') {
+      const videoUrl = Array.isArray(status.output) ? status.output[0] : status.output || '';
+      if (!videoUrl) throw new Error('Replicate completed but no video URL in response');
+
+      console.log(`[NeuralForge] Replicate video URL: ${videoUrl}`);
+      const videoRes = await fetch(videoUrl, { signal: AbortSignal.timeout(120000) });
+      if (!videoRes.ok) throw new Error(`Failed to download Replicate video: ${videoRes.status}`);
+
+      const arrayBuffer = await videoRes.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      const mime = 'video/mp4';
+      console.log(`[NeuralForge] Replicate video downloaded: ${arrayBuffer.byteLength} bytes`);
+      return { videoBase64: base64, mime, videoUrl };
+    }
+
+    if (status.status === 'failed') {
+      throw new Error(`Replicate generation failed: ${status.error || 'Unknown error'}`);
+    }
+
+    console.log(`[NeuralForge] Replicate prediction ${prediction.id} status: ${status.status}...`);
+  }
+
+  throw new Error('Replicate video generation timed out.');
+}
+
 // ─── Fetch image from URL and convert to base64 ─────────────────────────
 async function fetchImageAsBase64(url: string, timeout = 90000): Promise<string> {
   const response = await fetch(url, {
@@ -191,28 +279,46 @@ async function fetchVideoFromPollinations(
     } catch {}
 
     if (response.status === 402) {
-      throw new Error('INSUFFICIENT_CREDITS: Your Pollinations account needs more credits for video generation. Visit pollinations.ai to add credits or try Fal.ai mode instead.');
+      throw new Error('INSUFFICIENT_CREDITS: Your Pollinations account needs more credits for video generation. Visit enter.pollinations.ai to add credits, or try Fal.ai / Replicate mode instead (free credits available).');
     }
     throw new Error(errorMsg);
   }
 
   // Verify we actually got a video, not an image
   const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('image/')) {
-    throw new Error('VIDEO_FALLBACK_IMAGE: The API returned an image instead of a video. This usually means insufficient credits. Try Fal.ai mode or add credits at pollinations.ai.');
+  const modelUsed = response.headers.get('x-model-used') || '';
+  
+  if (contentType.includes('image/') || modelUsed.includes('image') || 
+      (!contentType.includes('video/') && !contentType.includes('octet-stream') && arrayBufferIsImage(await response.clone().arrayBuffer()))) {
+    throw new Error('VIDEO_FALLBACK_IMAGE: The Pollinations API returned an image instead of a video. This happens when your account has insufficient credits for video generation. Solutions: (1) Add credits at enter.pollinations.ai, (2) Use Fal.ai mode (free $10-20 credits at fal.ai), or (3) Use Replicate mode (free credits at replicate.com).');
   }
 
   const arrayBuffer = await response.arrayBuffer();
 
   // Validate video file size (should be at least 10KB for a real video)
   if (arrayBuffer.byteLength < 10000) {
-    throw new Error('VIDEO_TOO_SMALL: The generated video is too small and likely corrupted. This may be a credits issue. Try Fal.ai mode instead.');
+    throw new Error('VIDEO_TOO_SMALL: The generated video is too small and likely corrupted. This may be a credits issue. Try Fal.ai or Replicate mode instead.');
+  }
+
+  // Check for image file signatures (JPEG starts with 0xFFD8, PNG starts with 0x89504E47)
+  const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
+  const isJpeg = firstBytes[0] === 0xFF && firstBytes[1] === 0xD8;
+  const isPng = firstBytes[0] === 0x89 && firstBytes[1] === 0x50 && firstBytes[2] === 0x4E && firstBytes[3] === 0x47;
+  if (isJpeg || isPng) {
+    throw new Error('VIDEO_FALLBACK_IMAGE: The Pollinations API returned an image instead of video. Your credits may be insufficient. Try Fal.ai (free credits) or Replicate mode.');
   }
 
   const base64 = Buffer.from(arrayBuffer).toString('base64');
   const mime = contentType.includes('webm') ? 'video/webm' : 'video/mp4';
   console.log(`[NeuralForge] Pollinations video received: ${arrayBuffer.byteLength} bytes, type: ${mime}`);
   return { videoBase64: base64, mime };
+}
+
+// Helper: check if ArrayBuffer starts with image signature
+function arrayBufferIsImage(buf: ArrayBuffer): boolean {
+  const bytes = new Uint8Array(buf.slice(0, 4));
+  return (bytes[0] === 0xFF && bytes[1] === 0xD8) || // JPEG
+         (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47); // PNG
 }
 
 // ─── Fal.ai Video Generation (free $10-20 credits) ────────────────────────
@@ -473,6 +579,52 @@ export async function generateFalVideo(
     videoBase64: result.videoBase64,
     isReal: true,
     provider: 'fal-video',
+    modelUsed: modelId,
+    duration: 5,
+    width,
+    height,
+    mime: result.mime,
+    videoUrl: result.videoUrl,
+  };
+}
+
+// ─── Replicate Video Generation ─────────────────────────────────────────────
+export async function generateReplicateVideo(
+  prompt: string,
+  style: string = 'Cinematic',
+  width: number = 1344,
+  height: number = 768,
+  modelId: string = 'replicate-luma',
+  replicateApiKey: string,
+  negativePrompt: string = '',
+): Promise<{
+  videoBase64: string;
+  isReal: boolean;
+  provider: string;
+  modelUsed: string;
+  duration: number;
+  width: number;
+  height: number;
+  mime: string;
+  videoUrl: string;
+}> {
+  const enhancedPrompt = buildEnhancedPrompt(prompt, style, negativePrompt, true);
+
+  // Map modelId to Replicate model name
+  const REPLICATE_MODEL_MAP: Record<string, string> = {
+    'replicate-luma': 'luma-dream-machine',
+    'replicate-wan': 'wan-v2.1',
+    'replicate-kling': 'kling-v1',
+    'replicate-hailuo': 'minimax-hailuo',
+  };
+
+  const replicateModel = REPLICATE_MODEL_MAP[modelId] || 'luma-dream-machine';
+
+  const result = await generateVideoWithReplicate(enhancedPrompt, replicateApiKey, replicateModel, 300000);
+  return {
+    videoBase64: result.videoBase64,
+    isReal: true,
+    provider: 'replicate-video',
     modelUsed: modelId,
     duration: 5,
     width,

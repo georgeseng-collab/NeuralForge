@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateRealVideo, generateFalVideo, generateMotionVideoSource } from '@/lib/ai';
+import { generateRealVideo, generateFalVideo, generateReplicateVideo, generateMotionVideoSource } from '@/lib/ai';
 
 export const maxDuration = 300; // 5 minutes for video generation
 
@@ -11,13 +11,14 @@ export async function POST(request: NextRequest) {
       duration = 5,
       fps = 8,
       style = 'Cinematic',
-      modelId = 'fal-wan',
+      modelId = 'replicate-luma',
       width = 1344,
       height = 768,
       negativePrompt = '',
       pollinationsApiKey = '',
       falApiKey = '',
-      videoMode = 'fal', // 'real', 'fal', or 'motion'
+      replicateApiKey = '',
+      videoMode = 'replicate', // 'real', 'fal', 'replicate', or 'motion'
       motionEffect = 'ken-burns',
     } = body;
 
@@ -28,7 +29,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ─── Mode 1: Fal.ai Video Generation (free $10-20 credits) ────────────
+    // ─── Mode 1: Replicate Video Generation (free credits for new users) ──
+    if (videoMode === 'replicate') {
+      if (!replicateApiKey.trim()) {
+        return NextResponse.json({
+          detail: 'Replicate API key required. Sign up at replicate.com for free credits (no credit card needed).',
+          code: 'REPLICATE_KEY_REQUIRED',
+        }, { status: 400 });
+      }
+
+      try {
+        const result = await generateReplicateVideo(
+          prompt,
+          style,
+          width,
+          height,
+          modelId,
+          replicateApiKey,
+          negativePrompt,
+        );
+
+        return NextResponse.json({
+          video_base64: result.videoBase64,
+          video_mime: result.mime || 'video/mp4',
+          video_url: result.videoUrl,
+          is_real_generation: true,
+          mode: 'replicate-video',
+          provider: result.provider,
+          model_used: result.modelUsed,
+          duration: result.duration,
+          width: result.width,
+          height: result.height,
+          prompt,
+        });
+      } catch (error: any) {
+        console.error('[NeuralForge] Replicate video generation failed:', error.message);
+
+        if (error.message.includes('REPLICATE_INVALID_KEY')) {
+          return NextResponse.json({
+            detail: 'Invalid Replicate API key. Please check your key at replicate.com/account',
+            code: 'REPLICATE_INVALID_KEY',
+          }, { status: 401 });
+        }
+
+        if (error.message.includes('REPLICATE_INSUFFICIENT_CREDITS')) {
+          return NextResponse.json({
+            detail: 'Your Replicate credits are exhausted. Visit replicate.com to check balance or create a new account.',
+            code: 'REPLICATE_INSUFFICIENT_CREDITS',
+          }, { status: 402 });
+        }
+
+        return NextResponse.json({
+          detail: `Replicate video generation failed: ${error.message}. Try a different model or use Motion mode as fallback.`,
+          fallback_mode: 'motion',
+        }, { status: 502 });
+      }
+    }
+
+    // ─── Mode 2: Fal.ai Video Generation (free $10-20 credits) ────────────
     if (videoMode === 'fal') {
       if (!falApiKey.trim()) {
         return NextResponse.json({
@@ -85,7 +143,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ─── Mode 2: Pollinations Video Generation (requires API key + credits) ──
+    // ─── Mode 3: Pollinations Video Generation (requires API key + credits) ──
     if (videoMode === 'real' && pollinationsApiKey) {
       try {
         const result = await generateRealVideo(
@@ -117,13 +175,13 @@ export async function POST(request: NextRequest) {
 
         if (error.message.includes('INSUFFICIENT_CREDITS') || error.message.includes('VIDEO_FALLBACK_IMAGE')) {
           return NextResponse.json({
-            detail: `Pollinations credits insufficient for video. ${error.message}. Try Fal.ai mode instead (free credits at fal.ai).`,
-            suggestion: 'fal',
+            detail: `Pollinations credits insufficient for video. ${error.message}. Try Replicate mode (free credits at replicate.com) or Fal.ai mode instead.`,
+            suggestion: 'replicate',
           }, { status: 402 });
         }
 
         return NextResponse.json({
-          detail: `Pollinations video generation failed: ${error.message}. Try Fal.ai mode or use Motion mode.`,
+          detail: `Pollinations video generation failed: ${error.message}. Try Replicate or Fal.ai mode, or use Motion mode.`,
           fallback_mode: 'motion',
         }, { status: 502 });
       }
@@ -132,12 +190,12 @@ export async function POST(request: NextRequest) {
     // If real mode but no API key
     if (videoMode === 'real' && !pollinationsApiKey) {
       return NextResponse.json({
-        detail: 'Pollinations API key required for this mode. Enter your key or switch to Fal.ai mode (free credits).',
+        detail: 'Pollinations API key required for this mode. Enter your key or switch to Replicate/Fal.ai mode (free credits available).',
         code: 'API_KEY_REQUIRED',
       }, { status: 400 });
     }
 
-    // ─── Mode 3: Motion Video (Free, No API Key) ──────────────────────────
+    // ─── Mode 4: Motion Video (Free, No API Key) ──────────────────────────
     // Generates a high-quality image that will be animated client-side
     const motionResult = await generateMotionVideoSource(
       prompt,
