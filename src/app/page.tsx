@@ -60,6 +60,7 @@ const BADGE_COLORS: Record<string, string> = {
   'Free': 'bg-emerald-600/30 text-emerald-300',
   'Ultra': 'bg-purple-600/30 text-purple-300',
   'Best': 'bg-amber-600/30 text-amber-300',
+  'Credit': 'bg-orange-600/30 text-orange-300',
 };
 
 // ─── Motion-to-Video Encoder (Client-Side) ───────────────────────────────────
@@ -761,9 +762,8 @@ function VideoGenPanel() {
 
       if (isMotion) {
         // Motion mode: we get an image_base64, set as sourceImage which triggers encoding
-        const imageUrl = data.image_base64
-          ? `data:image/png;base64,${data.image_base64}`
-          : data.image_url;
+        // Backend already includes data:image/...;base64, prefix from fetchImageAsBase64
+        const imageUrl = data.image_base64 || data.image_url;
         setSourceImage(imageUrl);
         setGeneratedVideo(imageUrl);
         addGalleryItem({
@@ -782,13 +782,17 @@ function VideoGenPanel() {
       } else {
         // Real AI video mode: we get a video_base64
         if (data.video_base64) {
-          const byteChars = atob(data.video_base64);
+          let rawBase64 = data.video_base64;
+          if (rawBase64.startsWith('data:')) {
+            rawBase64 = rawBase64.split(',')[1]; // Strip data URL prefix
+          }
+          const byteChars = atob(rawBase64);
           const byteNumbers = new Array(byteChars.length);
           for (let i = 0; i < byteChars.length; i++) {
             byteNumbers[i] = byteChars.charCodeAt(i);
           }
           const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'video/mp4' });
+          const blob = new Blob([byteArray], { type: data.video_mime || 'video/mp4' });
           const url = URL.createObjectURL(blob);
           setVideoBlobUrl(url);
           setGeneratedVideoUrl(url);
@@ -838,8 +842,15 @@ function VideoGenPanel() {
           <h2 className="text-2xl font-bold">Video Generation</h2>
           <p className="text-sm text-zinc-500">Create AI videos for Reels, YouTube, TikTok & more</p>
         </div>
-        <Badge className={`ml-auto border-0 ${isMotion ? 'bg-emerald-600/20 text-emerald-300' : 'bg-purple-600/20 text-purple-300'}`}>
-          {isMotion ? <><Globe className="w-3 h-3 mr-1" /> Free</> : <><Key className="w-3 h-3 mr-1" /> AI</>}
+        <Badge className={`ml-auto border-0 ${
+          videoSettings.videoMode === 'free' ? 'bg-emerald-600/20 text-emerald-300' :
+          videoSettings.videoMode === 'real' ? 'bg-purple-600/20 text-purple-300' :
+          'bg-amber-600/20 text-amber-300'
+        }`}>
+          {videoSettings.videoMode === 'free' ? <><Globe className="w-3 h-3 mr-1" /> Free AI</> :
+            videoSettings.videoMode === 'real' ? <><Key className="w-3 h-3 mr-1" /> Pollinations</> :
+            <><Camera className="w-3 h-3 mr-1" /> Motion</>
+          }
         </Badge>
       </div>
 
@@ -851,9 +862,23 @@ function VideoGenPanel() {
               <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
                 <Video className="w-4 h-4 text-amber-400" /> Video Mode
               </Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
-                  onClick={() => updateVideoSettings({ videoMode: 'real', modelId: VIDEO_MODEL_OPTIONS[0].id })}
+                  onClick={() => updateVideoSettings({ videoMode: 'free', modelId: VIDEO_MODEL_OPTIONS.find(m => !m.needsApiKey)?.id || 'cogvideox' })}
+                  className={`text-left p-3 rounded-lg border transition-all duration-150
+                    ${videoSettings.videoMode === 'free'
+                      ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Globe className="w-4 h-4 text-emerald-400" />
+                    <span className="text-sm font-medium text-zinc-200">Free AI Video</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500">CogVideoX — No API key needed</p>
+                </button>
+                <button
+                  onClick={() => updateVideoSettings({ videoMode: 'real', modelId: VIDEO_MODEL_OPTIONS.find(m => m.needsApiKey)?.id || 'ltx-2' })}
                   className={`text-left p-3 rounded-lg border transition-all duration-150
                     ${videoSettings.videoMode === 'real'
                       ? 'bg-purple-600/20 border-purple-500/50 shadow-lg shadow-purple-500/10'
@@ -862,23 +887,23 @@ function VideoGenPanel() {
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Bolt className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm font-medium text-zinc-200">AI Video</span>
+                    <span className="text-sm font-medium text-zinc-200">Pollinations AI</span>
                   </div>
-                  <p className="text-[10px] text-zinc-500">Real AI-generated video (requires API key)</p>
+                  <p className="text-[10px] text-zinc-500">API key + credits, more models</p>
                 </button>
                 <button
                   onClick={() => updateVideoSettings({ videoMode: 'motion', modelId: MOTION_SOURCE_MODEL_OPTIONS[0].id })}
                   className={`text-left p-3 rounded-lg border transition-all duration-150
                     ${videoSettings.videoMode === 'motion'
-                      ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                      ? 'bg-amber-600/20 border-amber-500/50 shadow-lg shadow-amber-500/10'
                       : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
                     }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <Globe className="w-4 h-4 text-emerald-400" />
+                    <Camera className="w-4 h-4 text-amber-400" />
                     <span className="text-sm font-medium text-zinc-200">Motion Video</span>
                   </div>
-                  <p className="text-[10px] text-zinc-500">FREE! Ken Burns effects on AI image</p>
+                  <p className="text-[10px] text-zinc-500">Ken Burns effects on AI image</p>
                 </button>
               </div>
             </CardContent>
@@ -954,15 +979,44 @@ function VideoGenPanel() {
             </CardContent>
           </Card>
 
-          {/* Model Selector — different for real vs motion */}
-          {videoSettings.videoMode === 'real' ? (
+          {/* Model Selector — different for free vs real vs motion */}
+          {videoSettings.videoMode === 'free' ? (
+            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+              <CardContent className="p-4">
+                <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
+                  <Video className="w-4 h-4 text-emerald-400" /> Free AI Video Model
+                </Label>
+                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
+                  {VIDEO_MODEL_OPTIONS.filter(m => !m.needsApiKey).map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => updateVideoSettings({ modelId: model.id })}
+                      className={`text-left p-2.5 rounded-lg border transition-all duration-150
+                        ${videoSettings.modelId === model.id
+                          ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                          : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-zinc-200">{model.name}</span>
+                        <Badge className={`text-[9px] px-1.5 py-0 ${BADGE_COLORS[model.badge] || 'bg-zinc-600/30 text-zinc-300'}`}>
+                          {model.badge}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : videoSettings.videoMode === 'real' ? (
             <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
               <CardContent className="p-4">
                 <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
                   <Video className="w-4 h-4 text-purple-400" /> AI Video Model
                 </Label>
                 <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                  {VIDEO_MODEL_OPTIONS.map((model) => (
+                  {VIDEO_MODEL_OPTIONS.filter(m => m.needsApiKey).map((model) => (
                     <button
                       key={model.id}
                       onClick={() => updateVideoSettings({ modelId: model.id })}
@@ -990,7 +1044,7 @@ function VideoGenPanel() {
               <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
                 <CardContent className="p-4">
                   <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
-                    <Paintbrush className="w-4 h-4 text-emerald-400" /> Source Image Model
+                    <Paintbrush className="w-4 h-4 text-amber-400" /> Source Image Model
                   </Label>
                   <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
                     {MOTION_SOURCE_MODEL_OPTIONS.map((model) => (
@@ -999,7 +1053,7 @@ function VideoGenPanel() {
                         onClick={() => updateVideoSettings({ modelId: model.id })}
                         className={`text-left p-2.5 rounded-lg border transition-all duration-150
                           ${videoSettings.modelId === model.id
-                            ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                            ? 'bg-amber-600/20 border-amber-500/50 shadow-lg shadow-amber-500/10'
                             : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
                           }`}
                       >
@@ -1060,13 +1114,22 @@ function VideoGenPanel() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-zinc-300">Duration</Label>
-                  <Select value={`${videoSettings.duration}`} onValueChange={(v) => updateVideoSettings({ duration: Number(v) })}>
+                  <Label className="text-zinc-300">Duration{videoSettings.videoMode === 'free' ? ' (max 3s)' : ''}</Label>
+                  <Select value={`${Math.min(videoSettings.duration, videoSettings.videoMode === 'free' ? 3 : videoSettings.duration)}`} onValueChange={(v) => {
+                    const val = Number(v);
+                    if (videoSettings.videoMode === 'free') {
+                      updateVideoSettings({ duration: Math.min(val, 3) });
+                    } else {
+                      updateVideoSettings({ duration: val });
+                    }
+                  }}>
                     <SelectTrigger className="bg-zinc-800/50 border-zinc-700">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-800 border-zinc-700">
-                      {DURATION_OPTIONS.map((d) => (
+                      {DURATION_OPTIONS
+                        .filter(d => videoSettings.videoMode !== 'free' || d <= 3)
+                        .map((d) => (
                         <SelectItem key={d} value={`${d}`}>{d}s</SelectItem>
                       ))}
                     </SelectContent>
@@ -1089,9 +1152,11 @@ function VideoGenPanel() {
 
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5" />
-                {isMotion
+                {videoSettings.videoMode === 'motion'
                   ? `${videoSettings.duration}s motion video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · ${videoSettings.motionEffect}`
-                  : `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'})`
+                  : videoSettings.videoMode === 'free'
+                    ? `Free AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · max 3s`
+                    : `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'})`
                 }
               </div>
 
@@ -1099,15 +1164,21 @@ function VideoGenPanel() {
                 onClick={handleGenerate}
                 disabled={videoProgress.isGenerating || isEncoding}
                 className={`w-full text-white font-semibold h-12 text-base shadow-lg ${
-                  isMotion
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20'
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-500/20'
+                  videoSettings.videoMode === 'motion'
+                    ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-500/20'
+                    : videoSettings.videoMode === 'free'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20'
+                      : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-500/20'
                 }`}
               >
                 {videoProgress.isGenerating || isEncoding ? (
                   <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message || 'Encoding...'}</>
                 ) : (
-                  <><Film className="w-5 h-5 mr-2" /> {isMotion ? 'Generate Motion Video' : 'Generate AI Video'}</>
+                  <><Film className="w-5 h-5 mr-2" /> {
+                    videoSettings.videoMode === 'free' ? 'Generate Free AI Video' :
+                    videoSettings.videoMode === 'real' ? 'Generate AI Video' :
+                    'Generate Motion Video'
+                  }</>
                 )}
               </Button>
 
@@ -1115,7 +1186,7 @@ function VideoGenPanel() {
                 <div className="space-y-2">
                   <Progress value={isEncoding ? 75 : 50} className="h-2 animate-pulse" />
                   <p className="text-xs text-zinc-500 text-center">
-                    {isEncoding ? 'Encoding motion video...' : isMotion ? 'Generating source image... 10-30 seconds' : 'Generating AI video... 30-120 seconds'}
+                    {isEncoding ? 'Encoding motion video...' : videoSettings.videoMode === 'motion' ? 'Generating source image... 10-30 seconds' : videoSettings.videoMode === 'free' ? 'AI video generation... 60-180 seconds' : 'Generating AI video... 30-120 seconds'}
                   </p>
                 </div>
               )}
@@ -1128,8 +1199,10 @@ function VideoGenPanel() {
             <CardHeader>
               <CardTitle className="text-zinc-300 text-sm flex items-center gap-2">
                 <Video className="w-4 h-4" /> Video Preview
-                {isMotion ? (
-                  <Badge className="text-[9px] bg-emerald-600/20 text-emerald-300 border-0 ml-auto">{videoSettings.motionEffect}</Badge>
+                {videoSettings.videoMode === 'motion' ? (
+                  <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">{videoSettings.motionEffect}</Badge>
+                ) : videoSettings.videoMode === 'free' ? (
+                  <Badge className="text-[9px] bg-emerald-600/20 text-emerald-300 border-0 ml-auto">CogVideoX</Badge>
                 ) : selectedVideoModel ? (
                   <Badge className="text-[9px] bg-purple-600/20 text-purple-300 border-0 ml-auto">{selectedVideoModel.name}</Badge>
                 ) : null}
@@ -1143,53 +1216,43 @@ function VideoGenPanel() {
                   <video
                     ref={videoRef}
                     src={currentVideoUrl}
-                    className="w-full h-full object-contain"
+                    controls
                     autoPlay
                     loop
                     playsInline
-                    controls
+                    className="w-full h-full object-contain rounded-lg"
                   />
-                ) : isEncoding && sourceImage ? (
-                  <div className="text-center text-zinc-500 p-4">
-                    <ImageWithLoader src={sourceImage} />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                      <div className="text-center">
-                        <RefreshCw className="w-10 h-10 mx-auto mb-2 animate-spin text-amber-400" />
-                        <p className="text-sm text-zinc-200">Encoding motion video...</p>
-                        <p className="text-xs mt-1 text-zinc-400">{videoSettings.motionEffect} effect</p>
-                      </div>
-                    </div>
-                  </div>
+                ) : sourceImage && isMotion ? (
+                  <img src={sourceImage} alt="Source" className="w-full h-full object-contain" />
                 ) : videoProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
-                    <p className="text-sm">Generating your video...</p>
+                    <p className="text-sm">{videoProgress.message || 'Generating AI video...'}</p>
                     <p className="text-xs mt-1 text-zinc-600">
-                      {isMotion ? 'Creating source image, 10-30 seconds' : 'Creating AI video, 30-120 seconds'}
+                      {videoSettings.videoMode === 'motion' ? 'Generating source image... 10-30 seconds' :
+                       videoSettings.videoMode === 'free' ? 'AI video generation... 60-180 seconds' :
+                       'AI video generation... 30-120 seconds'}
                     </p>
                   </div>
                 ) : (
                   <div className="text-center text-zinc-600">
                     <Film className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">Your video will appear here</p>
-                    <p className="text-xs mt-1 text-zinc-700">Select a mode and enter a prompt</p>
+                    <p className="text-sm">Generated video will appear here</p>
                   </div>
                 )}
               </div>
 
               {currentVideoUrl && (
                 <div className="space-y-3 mt-4">
-                  <Button
-                    variant="outline"
-                    className="w-full border-emerald-700 text-emerald-300 hover:bg-emerald-600/20"
+                  <Button variant="outline" className="flex-1 border-zinc-700"
                     onClick={() => {
                       const a = document.createElement('a');
                       a.href = currentVideoUrl;
-                      a.download = `neuralforge-video-${Date.now()}.${isMotion ? 'webm' : 'mp4'}`;
+                      a.download = `neuralforge-video-${Date.now()}.mp4`;
                       a.click();
                     }}
                   >
-                    <Download className="w-4 h-4 mr-2" /> Download Video ({isMotion ? 'WebM' : 'MP4'})
+                    <Download className="w-4 h-4 mr-2" /> Download Video
                   </Button>
 
                   {sourceImage && isMotion && (
@@ -1211,26 +1274,14 @@ function VideoGenPanel() {
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
               <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-400" /> {isMotion ? 'Motion Video' : 'AI Video'}
+                <Star className="w-4 h-4 text-amber-400" /> Video Tips
               </h3>
               <div className="space-y-2 text-xs text-zinc-500">
-                {isMotion ? (
-                  <>
-                    <p><strong className="text-emerald-300">Free &amp; No API Key</strong> — Generates a high-quality AI image, then applies cinematic motion effects (Ken Burns, zoom, pan) to create smooth video</p>
-                    <p><strong className="text-amber-300">Ken Burns</strong> — Classic cinematic zoom + slight pan, great for landscapes</p>
-                    <p><strong className="text-pink-300">Zoom In/Out</strong> — Dramatic zoom for reveal or focus effects</p>
-                    <p><strong className="text-violet-300">Pan Left/Right</strong> — Smooth horizontal motion across the scene</p>
-                    <p><strong className="text-cyan-300">Drift</strong> — Gentle floating motion, perfect for dreamy scenes</p>
-                  </>
-                ) : (
-                  <>
-                    <p><strong className="text-purple-300">Real AI Video</strong> — Uses Pollinations.ai models to generate actual AI video from your prompt</p>
-                    <p><strong className="text-emerald-300">Free API Key</strong> — Get a free key at <a href="https://enter.pollinations.ai" target="_blank" rel="noopener noreferrer" className="underline text-purple-400">enter.pollinations.ai</a></p>
-                    <p><strong className="text-amber-300">LTX Video 2.3</strong> — Fast 5s generation, great quality</p>
-                    <p><strong className="text-pink-300">Veo 3.1</strong> — Google Veo with audio output</p>
-                    <p><strong className="text-violet-300">Nova Reel</strong> — 6-120s professional video</p>
-                  </>
-                )}
+                <p><strong className="text-emerald-300">CogVideoX</strong> — Free AI video, no API key needed (3s clips)</p>
+                <p><strong className="text-orange-300">LTX-2</strong> — Cheapest Pollinations video model</p>
+                <p><strong className="text-amber-300">Be descriptive</strong> — Describe motion and camera movement</p>
+                <p><strong className="text-violet-300">Use &quot;Cinematic&quot; style</strong> — For best video results</p>
+                <p><strong className="text-pink-300">For Reels/TikTok</strong> — Select the platform preset first</p>
               </div>
             </CardContent>
           </Card>

@@ -26,7 +26,7 @@ export interface VideoSettings {
   socialPreset: string;
   negativePrompt: string;
   pollinationsApiKey: string;
-  videoMode: 'real' | 'motion'; // real = AI video via API key, motion = Ken Burns effect from image
+  videoMode: 'real' | 'free' | 'motion'; // real = Pollinations with API key, free = HuggingFace no key, motion = Ken Burns effect
   motionEffect: 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'ken-burns' | 'drift';
 }
 
@@ -186,8 +186,11 @@ export const IMAGE_MODEL_OPTIONS = [
 
 // ─── Real AI Video Models (gen.pollinations.ai) ───────────────────────────
 export const VIDEO_MODEL_OPTIONS = [
-  { id: 'ltx-2', name: 'LTX Video 2.3', description: 'FREE! Fast AI video generation', speed: 'Fast', badge: 'Free', needsApiKey: true, maxDuration: 5 },
-  { id: 'nova-reel', name: 'Nova Reel', description: 'FREE! 6-120s professional video', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 30 },
+  // ─── Free Models (HuggingFace, no API key) ──────────────
+  { id: 'cogvideox', name: 'CogVideoX', description: 'FREE! No API key needed, AI video by Tencent', speed: 'Slow', badge: 'Free', needsApiKey: false, maxDuration: 3 },
+  // ─── Pollinations Models (requires API key + credits) ──
+  { id: 'ltx-2', name: 'LTX Video 2.3', description: 'Fast AI video, cheapest credits', speed: 'Fast', badge: 'Credit', needsApiKey: true, maxDuration: 5 },
+  { id: 'nova-reel', name: 'Nova Reel', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 30 },
   { id: 'wan-fast', name: 'Wan Fast', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, maxDuration: 5 },
   { id: 'wan', name: 'Wan 2.6', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 15 },
   { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'Pro', needsApiKey: true, maxDuration: 10 },
