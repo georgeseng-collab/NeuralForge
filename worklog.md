@@ -26,3 +26,30 @@ Stage Summary:
 - Frontend scroll fixes and sync progress indicator pushed to GitHub
 - Backend confirmed running at https://whatsapp-coach-production-5a6a.up.railway.app/health
 - Frontend at https://teamalliance.vercel.app
+---
+Task ID: 1
+Agent: Main Agent
+Task: Full diagnose and fix NeuralForge video generation - produce proper AI video instead of slideshow
+
+Work Log:
+- Cloned NeuralForge from GitHub (previous session project)
+- Read all key files: ai.ts, types.ts, store.ts, video/route.ts, image/route.ts, page.tsx
+- Diagnosed root cause: Pollinations video API was using wrong authentication format (key= query param instead of Authorization: Bearer header), causing 402 errors and fallback to image responses
+- Researched Pollinations API docs on GitHub - confirmed GET /video/{prompt} with Authorization header
+- Tested API key - account on "spore" tier with insufficient credits for video models
+- Added HuggingFace CogVideoX as free alternative (no API key needed)
+- Rewrote ai.ts with correct API format + HuggingFace fallback
+- Updated video route to handle 3 modes: real (Pollinations), free (HuggingFace), motion (Ken Burns)
+- Updated types.ts with CogVideoX model and 3-mode videoMode type
+- Updated store.ts with default videoMode='free', pre-filled API key, default model='cogvideox'
+- Updated page.tsx VideoGenPanel with 3 mode selector, fixed video_base64 parsing bug, proper <video> tag, download button
+- Built successfully with Next.js 16.1.3
+- Pushed to GitHub and deployed to Vercel
+
+Stage Summary:
+- Video generation now has 3 modes: Free AI Video (HuggingFace CogVideoX), Pollinations AI (with API key), Motion Video (Ken Burns)
+- Fixed critical bug: video_base64 data URL prefix wasn't being stripped before atob()
+- Fixed critical bug: API authentication was using wrong format (query param instead of Authorization header)
+- Added proper <video> tag with controls for video playback
+- Pre-filled Pollinations API key provided by user
+- Deployed to Vercel: https://my-project-eight-kappa-15.vercel.app
