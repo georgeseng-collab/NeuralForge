@@ -15,6 +15,8 @@ import {
   type CampaignDraft,
   type ScheduledPost,
   type AiVideoProviderSettings,
+  type WorkspaceSession,
+  type LeadRecord,
   DEFAULT_MODELS,
   DEFAULT_BLOCKED_PROMPTS,
 } from './types';
@@ -59,6 +61,12 @@ interface NeuralForgeStore {
   updateScheduledPost: (id: string, updates: Partial<ScheduledPost>) => void;
   aiVideoProviderSettings: AiVideoProviderSettings;
   updateAiVideoProviderSettings: (settings: Partial<AiVideoProviderSettings>) => void;
+  workspaceSession: WorkspaceSession;
+  updateWorkspaceSession: (settings: Partial<WorkspaceSession>) => void;
+  leads: LeadRecord[];
+  addLead: (lead: LeadRecord) => void;
+  updateLead: (id: string, updates: Partial<LeadRecord>) => void;
+  removeLead: (id: string) => void;
 
   // Gallery
   gallery: GalleryItem[];
@@ -229,6 +237,22 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   },
   updateAiVideoProviderSettings: (settings) =>
     set((state) => ({ aiVideoProviderSettings: { ...state.aiVideoProviderSettings, ...settings } })),
+  workspaceSession: {
+    userName: 'Owner',
+    email: '',
+    workspaceName: 'NeuralForge SG Workspace',
+    authProvider: 'local-preview',
+    isLoggedIn: false,
+    role: 'owner',
+  },
+  updateWorkspaceSession: (settings) =>
+    set((state) => ({ workspaceSession: { ...state.workspaceSession, ...settings } })),
+  leads: [],
+  addLead: (lead) => set((state) => ({ leads: [lead, ...state.leads] })),
+  updateLead: (id, updates) =>
+    set((state) => ({ leads: state.leads.map((lead) => lead.id === id ? { ...lead, ...updates } : lead) })),
+  removeLead: (id) =>
+    set((state) => ({ leads: state.leads.filter((lead) => lead.id !== id) })),
 
   // Gallery
   gallery: [],

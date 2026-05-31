@@ -125,6 +125,28 @@ export interface AiVideoProviderSettings {
   trueMotionEnabled: boolean;
 }
 
+export interface WorkspaceSession {
+  userName: string;
+  email: string;
+  workspaceName: string;
+  authProvider: 'local-preview' | 'supabase' | 'authjs';
+  isLoggedIn: boolean;
+  role: 'owner' | 'marketer' | 'viewer';
+}
+
+export interface LeadRecord {
+  id: string;
+  name: string;
+  contact: string;
+  source: 'instagram' | 'facebook' | 'tiktok' | 'whatsapp' | 'website' | 'manual';
+  interest: string;
+  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
+  consent: boolean;
+  consentPurpose: string;
+  createdAt: number;
+  notes: string;
+}
+
 export interface AIModel {
   id: string;
   name: string;

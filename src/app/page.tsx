@@ -15,7 +15,7 @@ import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
   IMAGE_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
   MOTION_EFFECT_OPTIONS, MOTION_SOURCE_MODEL_OPTIONS, REAL_VIDEO_DURATION_OPTIONS, REAL_VIDEO_MODEL_OPTIONS,
-  type AiVideoProviderSettings, type BrandProfile, type CampaignDraft, type GalleryItem, type ProductItem, type SafetyLogEntry, type ScheduledPost,
+  type AiVideoProviderSettings, type BrandProfile, type CampaignDraft, type GalleryItem, type LeadRecord, type ProductItem, type SafetyLogEntry, type ScheduledPost,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1519,14 +1519,16 @@ function VideoGenPanel() {
 }
 
 // ─── SG Growth Studio Panel ─────────────────────────────────────────────────
-type GrowthSection = 'profile' | 'links' | 'products' | 'planner' | 'scheduler' | 'video-providers';
+type GrowthSection = 'account' | 'profile' | 'links' | 'products' | 'planner' | 'scheduler' | 'leads' | 'video-providers';
 
 const GROWTH_SECTIONS: { id: GrowthSection; label: string; icon: typeof Share2 }[] = [
+  { id: 'account', label: 'Account', icon: Shield },
   { id: 'profile', label: 'Brand', icon: Settings },
   { id: 'links', label: 'Links & OAuth', icon: Share2 },
   { id: 'products', label: 'Products', icon: Box },
   { id: 'planner', label: 'Planner', icon: Wand2 },
   { id: 'scheduler', label: 'Scheduler', icon: Clock },
+  { id: 'leads', label: 'Leads', icon: Database },
   { id: 'video-providers', label: 'True Video', icon: Video },
 ];
 
@@ -1593,8 +1595,17 @@ function GrowthStudioPanel() {
     updateScheduledPost,
     aiVideoProviderSettings,
     updateAiVideoProviderSettings,
+    workspaceSession,
+    updateWorkspaceSession,
+    leads,
+    addLead,
+    updateLead,
+    removeLead,
+    setActiveTab,
+    updateImageSettings,
+    updateVideoSettings,
   } = useNeuralForgeStore();
-  const [section, setSection] = useState<GrowthSection>('profile');
+  const [section, setSection] = useState<GrowthSection>('account');
   const [draftPlatform, setDraftPlatform] = useState<CampaignDraft['platform']>('instagram');
   const [draftType, setDraftType] = useState<CampaignDraft['contentType']>('image');
   const [draftGoal, setDraftGoal] = useState<CampaignDraft['goal']>(brandProfile.primaryGoal);
@@ -1609,6 +1620,16 @@ function GrowthStudioPanel() {
     targetBuyer: '',
     orderLink: '',
     deliveryInfo: 'Islandwide delivery available.',
+  });
+  const [leadForm, setLeadForm] = useState<Omit<LeadRecord, 'id' | 'createdAt'>>({
+    name: '',
+    contact: '',
+    source: 'manual',
+    interest: '',
+    status: 'new',
+    consent: false,
+    consentPurpose: brandProfile.pdpaConsentPurpose,
+    notes: '',
   });
 
   const primaryOrderLink = socialLinks.find((link) => ['shopee', 'lazada', 'tiktokShop', 'website', 'whatsapp'].includes(link.platform) && link.url)?.url || '';
@@ -1671,6 +1692,50 @@ function GrowthStudioPanel() {
     setSection('scheduler');
   };
 
+  const sendDraftToGenerator = (draft: CampaignDraft) => {
+    if (draft.contentType === 'image' || draft.contentType === 'carousel') {
+      updateImageSettings({
+        prompt: draft.prompt,
+        style: 'Social Media',
+        width: draft.platform === 'instagram' ? 1024 : 768,
+        height: draft.platform === 'instagram' ? 1024 : 1344,
+      });
+      setActiveTab('image');
+    } else {
+      updateVideoSettings({
+        prompt: draft.prompt,
+        socialPreset: draft.platform === 'tiktok' ? 'tiktok' : draft.platform === 'instagram' ? 'instagram-reel' : 'facebook-reel',
+        generationMode: aiVideoProviderSettings.trueMotionEnabled ? 'real' : 'motion',
+      });
+      setActiveTab('video');
+    }
+    toast.success('Draft sent to generator');
+  };
+
+  const addLeadFromForm = () => {
+    if (!leadForm.name.trim() || !leadForm.contact.trim()) {
+      toast.error('Lead name and contact are required');
+      return;
+    }
+    addLead({
+      id: crypto.randomUUID(),
+      createdAt: Date.now(),
+      ...leadForm,
+      consentPurpose: leadForm.consentPurpose || brandProfile.pdpaConsentPurpose,
+    });
+    setLeadForm({
+      name: '',
+      contact: '',
+      source: 'manual',
+      interest: '',
+      status: 'new',
+      consent: false,
+      consentPurpose: brandProfile.pdpaConsentPurpose,
+      notes: '',
+    });
+    toast.success('Lead captured');
+  };
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -1701,6 +1766,70 @@ function GrowthStudioPanel() {
           </button>
         ))}
       </div>
+
+      {section === 'account' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Workspace Login Readiness</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>User Name</Label>
+                  <Input value={workspaceSession.userName} onChange={(e) => updateWorkspaceSession({ userName: e.target.value })} className="bg-zinc-800/50 border-zinc-700" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input value={workspaceSession.email} onChange={(e) => updateWorkspaceSession({ email: e.target.value })} placeholder="owner@example.com" className="bg-zinc-800/50 border-zinc-700" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Workspace Name</Label>
+                <Input value={workspaceSession.workspaceName} onChange={(e) => updateWorkspaceSession({ workspaceName: e.target.value })} className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Auth Provider</Label>
+                  <Select value={workspaceSession.authProvider} onValueChange={(value: typeof workspaceSession.authProvider) => updateWorkspaceSession({ authProvider: value })}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {['local-preview', 'supabase', 'authjs'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Role</Label>
+                  <Select value={workspaceSession.role} onValueChange={(value: typeof workspaceSession.role) => updateWorkspaceSession({ role: value })}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {['owner', 'marketer', 'viewer'].map((role) => <SelectItem key={role} value={role}>{role}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  updateWorkspaceSession({ isLoggedIn: !workspaceSession.isLoggedIn });
+                  toast.success(workspaceSession.isLoggedIn ? 'Preview user signed out' : 'Preview user signed in');
+                }}
+                className={workspaceSession.isLoggedIn ? 'w-full bg-zinc-700 hover:bg-zinc-600' : 'w-full bg-emerald-600 hover:bg-emerald-500'}
+              >
+                {workspaceSession.isLoggedIn ? 'Sign Out Preview User' : 'Sign In Preview User'}
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Production Auth Checklist</CardTitle></CardHeader>
+            <CardContent className="space-y-3 text-sm text-zinc-400">
+              <p><strong className="text-emerald-300">1. User auth:</strong> Add Supabase Auth or Auth.js for real accounts.</p>
+              <p><strong className="text-cyan-300">2. Database:</strong> Move workspace, products, drafts, leads and schedules from local state to Postgres.</p>
+              <p><strong className="text-violet-300">3. Social OAuth:</strong> Store Meta/TikTok tokens server-side only after user authorization.</p>
+              <p><strong className="text-amber-300">4. Scheduler worker:</strong> Use a cron/queue worker to publish scheduled posts reliably.</p>
+              <Separator className="bg-zinc-800" />
+              <p className="text-xs text-zinc-500">This panel is a safe frontend foundation; it does not collect social passwords or expose API keys.</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {section === 'profile' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1878,6 +2007,7 @@ function GrowthStudioPanel() {
                   <Textarea value={`${draft.caption}\n\n${draft.hashtags.join(' ')}`} readOnly className="bg-zinc-800/50 border-zinc-700 min-h-[160px] text-xs" />
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => scheduleDraft(draft)} className="bg-emerald-600 hover:bg-emerald-500"><Clock className="w-4 h-4 mr-2" /> Schedule</Button>
+                    <Button size="sm" variant="outline" className="border-zinc-700" onClick={() => sendDraftToGenerator(draft)}><Sparkles className="w-4 h-4 mr-2" /> Generate Asset</Button>
                     <Button size="sm" variant="outline" className="border-zinc-700" onClick={() => navigator.clipboard?.writeText(`${draft.caption}\n\n${draft.hashtags.join(' ')}`)}><Copy className="w-4 h-4 mr-2" /> Copy</Button>
                   </div>
                 </CardContent>
@@ -1907,6 +2037,78 @@ function GrowthStudioPanel() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {section === 'leads' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Capture Lead</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input value={leadForm.name} onChange={(e) => setLeadForm({ ...leadForm, name: e.target.value })} placeholder="Lead name" className="bg-zinc-800/50 border-zinc-700" />
+                <Input value={leadForm.contact} onChange={(e) => setLeadForm({ ...leadForm, contact: e.target.value })} placeholder="Phone / email / handle" className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Select value={leadForm.source} onValueChange={(value: LeadRecord['source']) => setLeadForm({ ...leadForm, source: value })}>
+                  <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-zinc-800 border-zinc-700">
+                    {['instagram', 'facebook', 'tiktok', 'whatsapp', 'website', 'manual'].map((source) => <SelectItem key={source} value={source}>{source}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={leadForm.status} onValueChange={(value: LeadRecord['status']) => setLeadForm({ ...leadForm, status: value })}>
+                  <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-zinc-800 border-zinc-700">
+                    {['new', 'contacted', 'qualified', 'converted', 'lost'].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Textarea value={leadForm.interest} onChange={(e) => setLeadForm({ ...leadForm, interest: e.target.value })} placeholder="What are they interested in?" className="bg-zinc-800/50 border-zinc-700 min-h-[70px]" />
+              <Textarea value={leadForm.notes} onChange={(e) => setLeadForm({ ...leadForm, notes: e.target.value })} placeholder="Follow-up notes" className="bg-zinc-800/50 border-zinc-700 min-h-[70px]" />
+              <div className="flex items-start gap-3 rounded-lg border border-zinc-800 p-3">
+                <Switch checked={leadForm.consent} onCheckedChange={(checked) => setLeadForm({ ...leadForm, consent: checked })} />
+                <div>
+                  <p className="text-sm text-zinc-200">Marketing consent recorded</p>
+                  <p className="text-xs text-zinc-500">{leadForm.consentPurpose || brandProfile.pdpaConsentPurpose}</p>
+                </div>
+              </div>
+              <Button onClick={addLeadFromForm} className="w-full bg-emerald-600 hover:bg-emerald-500"><Plus className="w-4 h-4 mr-2" /> Add Lead</Button>
+            </CardContent>
+          </Card>
+          <div className="space-y-3">
+            {leads.length === 0 ? (
+              <Card className="bg-zinc-900/50 border-zinc-800"><CardContent className="p-8 text-center text-zinc-500">No leads yet. Capture enquiries from DMs, WhatsApp, forms or comments.</CardContent></Card>
+            ) : leads.map((lead) => (
+              <Card key={lead.id} className="bg-zinc-900/50 border-zinc-800">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Database className="w-5 h-5 text-emerald-400 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-zinc-200">{lead.name}</p>
+                        <Badge className="bg-cyan-600/20 text-cyan-300 border-0">{lead.source}</Badge>
+                        <Badge className={`border-0 ${lead.consent ? 'bg-emerald-600/20 text-emerald-300' : 'bg-amber-600/20 text-amber-300'}`}>{lead.consent ? 'consent' : 'no consent'}</Badge>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-1">{lead.contact}</p>
+                      <p className="text-xs text-zinc-400 mt-2">{lead.interest}</p>
+                      <div className="flex gap-2 mt-3">
+                        {(['new', 'contacted', 'qualified', 'converted', 'lost'] as LeadRecord['status'][]).map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => updateLead(lead.id, { status })}
+                            className={`px-2 py-1 rounded text-[10px] ${lead.status === status ? 'bg-emerald-600/30 text-emerald-200' : 'bg-zinc-800 text-zinc-500'}`}
+                          >
+                            {status}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => removeLead(lead.id)}><Trash2 className="w-4 h-4 text-red-400" /></Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
