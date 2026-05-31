@@ -1011,7 +1011,6 @@ function VideoGenPanel() {
                 </CardContent>
               </Card>
             </>
-          </>
 
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-5 space-y-5">
