@@ -1,6 +1,6 @@
 // ─── NeuralForge Types ────────────────────────────────────────────────────────
 
-export type AppTab = 'image' | 'video' | 'gallery' | 'models' | 'safety' | 'settings';
+export type AppTab = 'image' | 'video' | 'growth' | 'gallery' | 'models' | 'safety' | 'settings';
 
 export interface ImageSettings {
   prompt: string;
@@ -43,6 +43,86 @@ export interface GalleryItem {
   modelUsed?: string;
   provider?: string;
   videoUrl?: string;
+}
+
+export type SocialPlatform =
+  | 'instagram'
+  | 'facebook'
+  | 'tiktok'
+  | 'whatsapp'
+  | 'shopee'
+  | 'lazada'
+  | 'tiktokShop'
+  | 'carousell'
+  | 'website';
+
+export interface SocialLink {
+  platform: SocialPlatform;
+  label: string;
+  url: string;
+  connected: boolean;
+  oauthStatus: 'manual-link' | 'not-connected' | 'pending-review' | 'connected';
+}
+
+export interface BrandProfile {
+  businessName: string;
+  industry: string;
+  targetAudience: string;
+  offer: string;
+  uniqueSellingPoint: string;
+  tone: 'professional' | 'friendly' | 'singlish-light' | 'premium' | 'urgent';
+  language: 'english' | 'singlish-light' | 'mandarin-friendly' | 'malay-friendly';
+  singaporeZones: string[];
+  primaryGoal: 'leads' | 'ecommerce' | 'awareness' | 'engagement';
+  whatsappNumber: string;
+  pdpaConsentPurpose: string;
+}
+
+export interface ProductItem {
+  id: string;
+  name: string;
+  category: string;
+  price: string;
+  promoPrice: string;
+  stock: string;
+  benefits: string;
+  targetBuyer: string;
+  orderLink: string;
+  deliveryInfo: string;
+}
+
+export interface CampaignDraft {
+  id: string;
+  title: string;
+  platform: 'instagram' | 'facebook' | 'tiktok';
+  contentType: 'image' | 'video' | 'carousel';
+  goal: 'leads' | 'ecommerce' | 'awareness' | 'engagement';
+  hook: string;
+  caption: string;
+  prompt: string;
+  cta: string;
+  hashtags: string[];
+  productId?: string;
+  createdAt: number;
+}
+
+export interface ScheduledPost {
+  id: string;
+  draftId: string;
+  platform: 'instagram' | 'facebook' | 'tiktok';
+  caption: string;
+  assetType: 'image' | 'video' | 'carousel';
+  scheduledFor: string;
+  status: 'draft' | 'scheduled' | 'needs-oauth' | 'published' | 'failed';
+  notes: string;
+}
+
+export interface AiVideoProviderSettings {
+  preferredProvider: 'replicate' | 'fal' | 'kling' | 'seedance';
+  budgetMode: 'draft' | 'standard' | 'premium';
+  monthlyBudgetSgd: string;
+  requireApprovalBeforeSpend: boolean;
+  trueMotionEnabled: boolean;
 }
 
 export interface AIModel {

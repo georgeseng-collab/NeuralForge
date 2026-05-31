@@ -15,7 +15,7 @@ import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
   IMAGE_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
   MOTION_EFFECT_OPTIONS, MOTION_SOURCE_MODEL_OPTIONS, REAL_VIDEO_DURATION_OPTIONS, REAL_VIDEO_MODEL_OPTIONS,
-  type GalleryItem, type SafetyLogEntry,
+  type AiVideoProviderSettings, type BrandProfile, type CampaignDraft, type GalleryItem, type ProductItem, type SafetyLogEntry, type ScheduledPost,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +39,7 @@ import { toast } from 'sonner';
 const NAV_ITEMS = [
   { id: 'image' as const, label: 'Image Gen', icon: Image },
   { id: 'video' as const, label: 'Video Gen', icon: Film },
+  { id: 'growth' as const, label: 'SG Growth', icon: Share2 },
   { id: 'gallery' as const, label: 'Gallery', icon: Layers },
   { id: 'models' as const, label: 'Models', icon: Database },
   { id: 'safety' as const, label: 'Safety', icon: Shield },
@@ -558,6 +559,7 @@ export default function Home() {
           >
             {activeTab === 'image' && <ImageGenPanel />}
             {activeTab === 'video' && <VideoGenPanel />}
+            {activeTab === 'growth' && <GrowthStudioPanel />}
             {activeTab === 'gallery' && <GalleryPanel />}
             {activeTab === 'models' && <ModelsPanel />}
             {activeTab === 'safety' && <SafetyPanel />}
@@ -1512,6 +1514,455 @@ function VideoGenPanel() {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── SG Growth Studio Panel ─────────────────────────────────────────────────
+type GrowthSection = 'profile' | 'links' | 'products' | 'planner' | 'scheduler' | 'video-providers';
+
+const GROWTH_SECTIONS: { id: GrowthSection; label: string; icon: typeof Share2 }[] = [
+  { id: 'profile', label: 'Brand', icon: Settings },
+  { id: 'links', label: 'Links & OAuth', icon: Share2 },
+  { id: 'products', label: 'Products', icon: Box },
+  { id: 'planner', label: 'Planner', icon: Wand2 },
+  { id: 'scheduler', label: 'Scheduler', icon: Clock },
+  { id: 'video-providers', label: 'True Video', icon: Video },
+];
+
+function buildSingaporeCaption(
+  draft: Pick<CampaignDraft, 'platform' | 'contentType' | 'goal'>,
+  brand: BrandProfile,
+  product?: ProductItem,
+  primaryLink?: string,
+): CampaignDraft {
+  const productName = product?.name || 'your featured offer';
+  const priceLine = product?.promoPrice
+    ? `Today promo: S$${product.promoPrice}${product.price ? ` (usual S$${product.price})` : ''}.`
+    : brand.offer;
+  const zone = brand.singaporeZones[0] || 'Singapore';
+  const cta = brand.primaryGoal === 'leads'
+    ? `DM "INFO" or WhatsApp us to get details.`
+    : `Tap the link to order${primaryLink ? `: ${primaryLink}` : ' or message us to buy'}.`;
+  const hook = brand.primaryGoal === 'leads'
+    ? `Need more enquiries from ${zone}?`
+    : `Singapore deal alert for ${productName}!`;
+  const caption = [
+    hook,
+    `${productName} is for ${product?.targetBuyer || brand.targetAudience}.`,
+    product?.benefits || brand.uniqueSellingPoint,
+    priceLine,
+    product?.deliveryInfo || 'Islandwide delivery available.',
+    cta,
+  ].filter(Boolean).join('\n\n');
+  const hashtags = draft.platform === 'tiktok'
+    ? ['#sgtiktok', '#singaporedeals', '#sgsmallbusiness', '#tiktokshopsg']
+    : ['#singapore', '#sgbusiness', '#sgdeals', '#supportlocalsg'];
+
+  return {
+    id: crypto.randomUUID(),
+    title: `${productName} ${draft.platform} ${draft.contentType}`,
+    platform: draft.platform,
+    contentType: draft.contentType,
+    goal: draft.goal,
+    hook,
+    caption,
+    prompt: `Create a ${draft.contentType} for ${brand.industry} in Singapore. Feature ${productName}. Style: ${brand.tone}. Audience: ${brand.targetAudience}. CTA: ${cta}`,
+    cta,
+    hashtags,
+    productId: product?.id,
+    createdAt: Date.now(),
+  };
+}
+
+function GrowthStudioPanel() {
+  const {
+    brandProfile,
+    updateBrandProfile,
+    socialLinks,
+    updateSocialLink,
+    products,
+    addProduct,
+    updateProduct,
+    removeProduct,
+    campaignDrafts,
+    addCampaignDraft,
+    removeCampaignDraft,
+    scheduledPosts,
+    addScheduledPost,
+    updateScheduledPost,
+    aiVideoProviderSettings,
+    updateAiVideoProviderSettings,
+  } = useNeuralForgeStore();
+  const [section, setSection] = useState<GrowthSection>('profile');
+  const [draftPlatform, setDraftPlatform] = useState<CampaignDraft['platform']>('instagram');
+  const [draftType, setDraftType] = useState<CampaignDraft['contentType']>('image');
+  const [draftGoal, setDraftGoal] = useState<CampaignDraft['goal']>(brandProfile.primaryGoal);
+  const [selectedProductId, setSelectedProductId] = useState(products[0]?.id || '');
+  const [productForm, setProductForm] = useState<Omit<ProductItem, 'id'>>({
+    name: '',
+    category: '',
+    price: '',
+    promoPrice: '',
+    stock: '',
+    benefits: '',
+    targetBuyer: '',
+    orderLink: '',
+    deliveryInfo: 'Islandwide delivery available.',
+  });
+
+  const primaryOrderLink = socialLinks.find((link) => ['shopee', 'lazada', 'tiktokShop', 'website', 'whatsapp'].includes(link.platform) && link.url)?.url || '';
+  const connectedPublishingCount = socialLinks.filter((link) => ['instagram', 'facebook', 'tiktok'].includes(link.platform) && link.oauthStatus === 'connected').length;
+  const selectedProduct = products.find((product) => product.id === selectedProductId) || products[0];
+
+  const generateDraft = () => {
+    const draft = buildSingaporeCaption(
+      { platform: draftPlatform, contentType: draftType, goal: draftGoal },
+      brandProfile,
+      selectedProduct,
+      selectedProduct?.orderLink || primaryOrderLink,
+    );
+    addCampaignDraft(draft);
+    toast.success('Singapore campaign draft generated');
+    setSection('planner');
+  };
+
+  const addProductFromForm = () => {
+    if (!productForm.name.trim()) {
+      toast.error('Product name is required');
+      return;
+    }
+    const product: ProductItem = { id: crypto.randomUUID(), ...productForm };
+    addProduct(product);
+    setSelectedProductId(product.id);
+    setProductForm({
+      name: '',
+      category: '',
+      price: '',
+      promoPrice: '',
+      stock: '',
+      benefits: '',
+      targetBuyer: '',
+      orderLink: '',
+      deliveryInfo: 'Islandwide delivery available.',
+    });
+    toast.success('Product added');
+  };
+
+  const scheduleDraft = (draft: CampaignDraft) => {
+    const runAt = new Date();
+    runAt.setDate(runAt.getDate() + 1);
+    runAt.setHours(20, 0, 0, 0);
+    const platformLink = socialLinks.find((link) => link.platform === draft.platform);
+    const post: ScheduledPost = {
+      id: crypto.randomUUID(),
+      draftId: draft.id,
+      platform: draft.platform,
+      caption: `${draft.caption}\n\n${draft.hashtags.join(' ')}`,
+      assetType: draft.contentType,
+      scheduledFor: runAt.toISOString().slice(0, 16),
+      status: platformLink?.oauthStatus === 'connected' ? 'scheduled' : 'needs-oauth',
+      notes: platformLink?.oauthStatus === 'connected'
+        ? 'Ready for publisher worker.'
+        : 'Connect OAuth before automatic publishing. Manual link CTAs still work.',
+    };
+    addScheduledPost(post);
+    toast.success('Draft added to scheduler');
+    setSection('scheduler');
+  };
+
+  return (
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center">
+          <Share2 className="w-5 h-5 text-emerald-400" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold">SG Growth Studio</h2>
+          <p className="text-sm text-zinc-500">Singapore content planner, social links, scheduling, leads and ecommerce foundation</p>
+        </div>
+        <Badge className="ml-auto bg-emerald-600/20 text-emerald-300 border-0">
+          {connectedPublishingCount} OAuth connected
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-6">
+        {GROWTH_SECTIONS.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setSection(item.id)}
+            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all ${
+              section === item.id
+                ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-200'
+                : 'bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <item.icon className="w-4 h-4" /> {item.label}
+          </button>
+        ))}
+      </div>
+
+      {section === 'profile' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Business Profile</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Business Name</Label>
+                  <Input value={brandProfile.businessName} onChange={(e) => updateBrandProfile({ businessName: e.target.value })} className="bg-zinc-800/50 border-zinc-700" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Industry</Label>
+                  <Input value={brandProfile.industry} onChange={(e) => updateBrandProfile({ industry: e.target.value })} className="bg-zinc-800/50 border-zinc-700" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Target Audience</Label>
+                <Textarea value={brandProfile.targetAudience} onChange={(e) => updateBrandProfile({ targetAudience: e.target.value })} className="bg-zinc-800/50 border-zinc-700 min-h-[70px]" />
+              </div>
+              <div className="space-y-2">
+                <Label>Offer / USP</Label>
+                <Textarea value={`${brandProfile.offer}\n${brandProfile.uniqueSellingPoint}`} onChange={(e) => {
+                  const [offer, ...usp] = e.target.value.split('\n');
+                  updateBrandProfile({ offer, uniqueSellingPoint: usp.join('\n') });
+                }} className="bg-zinc-800/50 border-zinc-700 min-h-[90px]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Tone</Label>
+                  <Select value={brandProfile.tone} onValueChange={(value: BrandProfile['tone']) => updateBrandProfile({ tone: value })}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {['professional', 'friendly', 'singlish-light', 'premium', 'urgent'].map((tone) => <SelectItem key={tone} value={tone}>{tone}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Goal</Label>
+                  <Select value={brandProfile.primaryGoal} onValueChange={(value: BrandProfile['primaryGoal']) => updateBrandProfile({ primaryGoal: value })}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {['leads', 'ecommerce', 'awareness', 'engagement'].map((goal) => <SelectItem key={goal} value={goal}>{goal}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Singapore + PDPA Setup</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Singapore Zones</Label>
+                <Input value={brandProfile.singaporeZones.join(', ')} onChange={(e) => updateBrandProfile({ singaporeZones: e.target.value.split(',').map((zone) => zone.trim()).filter(Boolean) })} className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp Number</Label>
+                <Input value={brandProfile.whatsappNumber} onChange={(e) => updateBrandProfile({ whatsappNumber: e.target.value })} placeholder="+65..." className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <div className="space-y-2">
+                <Label>PDPA Consent Purpose</Label>
+                <Textarea value={brandProfile.pdpaConsentPurpose} onChange={(e) => updateBrandProfile({ pdpaConsentPurpose: e.target.value })} className="bg-zinc-800/50 border-zinc-700 min-h-[100px]" />
+              </div>
+              <div className="rounded-lg bg-amber-600/10 border border-amber-600/30 p-3 text-xs text-amber-200">
+                Lead forms should keep consent unchecked by default, record timestamp/source, and include opt-out instructions before marketing follow-up.
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {section === 'links' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {socialLinks.map((link) => (
+            <Card key={link.platform} className="bg-zinc-900/50 border-zinc-800">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-200">{link.label}</p>
+                    <p className="text-[10px] text-zinc-500">{link.oauthStatus === 'connected' ? 'OAuth connected' : link.oauthStatus === 'manual-link' ? 'Manual link / CTA ready' : 'OAuth setup required for auto-posting'}</p>
+                  </div>
+                  <Badge className={`ml-auto border-0 ${link.url ? 'bg-emerald-600/20 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>{link.url ? 'Link set' : 'No link'}</Badge>
+                </div>
+                <Input value={link.url} onChange={(e) => updateSocialLink(link.platform, { url: e.target.value, connected: !!e.target.value })} placeholder={`Paste ${link.label} URL`} className="bg-zinc-800/50 border-zinc-700" />
+                {['instagram', 'facebook', 'tiktok'].includes(link.platform) && (
+                  <Button variant="outline" className="w-full border-zinc-700" onClick={() => {
+                    updateSocialLink(link.platform, { oauthStatus: 'pending-review' });
+                    toast.info('OAuth connection requires registered Meta/TikTok developer app credentials and approval.');
+                  }}>
+                    Prepare OAuth Connection
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {section === 'products' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Add Product / Offer</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} placeholder="Product name" className="bg-zinc-800/50 border-zinc-700" />
+                <Input value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })} placeholder="Category" className="bg-zinc-800/50 border-zinc-700" />
+                <Input value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} placeholder="Price" className="bg-zinc-800/50 border-zinc-700" />
+                <Input value={productForm.promoPrice} onChange={(e) => setProductForm({ ...productForm, promoPrice: e.target.value })} placeholder="Promo price" className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <Textarea value={productForm.benefits} onChange={(e) => setProductForm({ ...productForm, benefits: e.target.value })} placeholder="Benefits / pain points solved" className="bg-zinc-800/50 border-zinc-700 min-h-[80px]" />
+              <Input value={productForm.orderLink} onChange={(e) => setProductForm({ ...productForm, orderLink: e.target.value })} placeholder="Shopee/Lazada/TikTok Shop/order link" className="bg-zinc-800/50 border-zinc-700" />
+              <Button onClick={addProductFromForm} className="w-full bg-emerald-600 hover:bg-emerald-500"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
+            </CardContent>
+          </Card>
+          <div className="space-y-3">
+            {products.map((product) => (
+              <Card key={product.id} className="bg-zinc-900/50 border-zinc-800">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Box className="w-5 h-5 text-cyan-400 mt-0.5" />
+                    <div className="flex-1">
+                      <Input value={product.name} onChange={(e) => updateProduct(product.id, { name: e.target.value })} className="bg-transparent border-0 p-0 h-auto text-zinc-100 font-semibold" />
+                      <p className="text-xs text-zinc-500 mt-1">{product.category} · S${product.promoPrice || product.price} · Stock {product.stock || 'n/a'}</p>
+                      <p className="text-xs text-zinc-400 mt-2">{product.benefits}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => removeProduct(product.id)}><Trash2 className="w-4 h-4 text-red-400" /></Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {section === 'planner' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Generate Singapore Campaign Draft</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <Select value={draftPlatform} onValueChange={(value: CampaignDraft['platform']) => setDraftPlatform(value)}>
+                  <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-zinc-800 border-zinc-700">{['instagram', 'facebook', 'tiktok'].map((platform) => <SelectItem key={platform} value={platform}>{platform}</SelectItem>)}</SelectContent>
+                </Select>
+                <Select value={draftType} onValueChange={(value: CampaignDraft['contentType']) => setDraftType(value)}>
+                  <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-zinc-800 border-zinc-700">{['image', 'video', 'carousel'].map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent>
+                </Select>
+                <Select value={draftGoal} onValueChange={(value: CampaignDraft['goal']) => setDraftGoal(value)}>
+                  <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-zinc-800 border-zinc-700">{['leads', 'ecommerce', 'awareness', 'engagement'].map((goal) => <SelectItem key={goal} value={goal}>{goal}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue placeholder="Select product" /></SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700">{products.map((product) => <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button onClick={generateDraft} className="w-full bg-violet-600 hover:bg-violet-500"><Wand2 className="w-4 h-4 mr-2" /> Generate Draft</Button>
+            </CardContent>
+          </Card>
+          <div className="space-y-3">
+            {campaignDrafts.length === 0 ? (
+              <Card className="bg-zinc-900/50 border-zinc-800"><CardContent className="p-8 text-center text-zinc-500">No drafts yet. Generate one from your Singapore brand/product profile.</CardContent></Card>
+            ) : campaignDrafts.map((draft) => (
+              <Card key={draft.id} className="bg-zinc-900/50 border-zinc-800">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-violet-600/20 text-violet-300 border-0">{draft.platform}</Badge>
+                    <Badge className="bg-amber-600/20 text-amber-300 border-0">{draft.goal}</Badge>
+                    <Button variant="ghost" size="sm" className="ml-auto" onClick={() => removeCampaignDraft(draft.id)}><X className="w-4 h-4" /></Button>
+                  </div>
+                  <p className="font-semibold text-zinc-200">{draft.hook}</p>
+                  <Textarea value={`${draft.caption}\n\n${draft.hashtags.join(' ')}`} readOnly className="bg-zinc-800/50 border-zinc-700 min-h-[160px] text-xs" />
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => scheduleDraft(draft)} className="bg-emerald-600 hover:bg-emerald-500"><Clock className="w-4 h-4 mr-2" /> Schedule</Button>
+                    <Button size="sm" variant="outline" className="border-zinc-700" onClick={() => navigator.clipboard?.writeText(`${draft.caption}\n\n${draft.hashtags.join(' ')}`)}><Copy className="w-4 h-4 mr-2" /> Copy</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {section === 'scheduler' && (
+        <div className="space-y-3">
+          {scheduledPosts.length === 0 ? (
+            <Card className="bg-zinc-900/50 border-zinc-800"><CardContent className="p-8 text-center text-zinc-500">No scheduled posts yet. Schedule a campaign draft first.</CardContent></Card>
+          ) : scheduledPosts.map((post) => (
+            <Card key={post.id} className="bg-zinc-900/50 border-zinc-800">
+              <CardContent className="p-4 grid grid-cols-1 lg:grid-cols-[1fr_220px_140px] gap-4 items-start">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className="bg-cyan-600/20 text-cyan-300 border-0">{post.platform}</Badge>
+                    <Badge className={`border-0 ${post.status === 'scheduled' ? 'bg-emerald-600/20 text-emerald-300' : 'bg-amber-600/20 text-amber-300'}`}>{post.status}</Badge>
+                  </div>
+                  <p className="text-sm text-zinc-300 whitespace-pre-line">{post.caption}</p>
+                  <p className="text-xs text-zinc-500 mt-2">{post.notes}</p>
+                </div>
+                <Input type="datetime-local" value={post.scheduledFor} onChange={(e) => updateScheduledPost(post.id, { scheduledFor: e.target.value })} className="bg-zinc-800/50 border-zinc-700" />
+                <Button variant="outline" className="border-zinc-700" onClick={() => toast.info('Publishing worker will be enabled after OAuth credentials and app review are configured.')}>Publish Check</Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {section === 'video-providers' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">True AI Motion Provider Strategy</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Preferred Provider</Label>
+                  <Select value={aiVideoProviderSettings.preferredProvider} onValueChange={(value: AiVideoProviderSettings['preferredProvider']) => updateAiVideoProviderSettings({ preferredProvider: value })}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">{['replicate', 'fal', 'kling', 'seedance'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Budget Mode</Label>
+                  <Select value={aiVideoProviderSettings.budgetMode} onValueChange={(value: AiVideoProviderSettings['budgetMode']) => updateAiVideoProviderSettings({ budgetMode: value })}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">{['draft', 'standard', 'premium'].map((mode) => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Monthly AI Video Budget (SGD)</Label>
+                <Input value={aiVideoProviderSettings.monthlyBudgetSgd} onChange={(e) => updateAiVideoProviderSettings({ monthlyBudgetSgd: e.target.value })} className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-zinc-800 p-3">
+                <div>
+                  <p className="text-sm text-zinc-200">Require approval before spending credits</p>
+                  <p className="text-xs text-zinc-500">Prevents accidental true-video costs.</p>
+                </div>
+                <Switch checked={aiVideoProviderSettings.requireApprovalBeforeSpend} onCheckedChange={(checked) => updateAiVideoProviderSettings({ requireApprovalBeforeSpend: checked })} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-zinc-800 p-3">
+                <div>
+                  <p className="text-sm text-zinc-200">Enable paid true AI motion video</p>
+                  <p className="text-xs text-zinc-500">Needs provider API key configured server-side.</p>
+                </div>
+                <Switch checked={aiVideoProviderSettings.trueMotionEnabled} onCheckedChange={(checked) => updateAiVideoProviderSettings({ trueMotionEnabled: checked })} />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Value-for-Money Routing</CardTitle></CardHeader>
+            <CardContent className="space-y-3 text-sm text-zinc-400">
+              <p><strong className="text-emerald-300">Draft:</strong> Wan/Kling fast models for cheap prompt testing.</p>
+              <p><strong className="text-cyan-300">Standard:</strong> Kling or Luma-style providers for normal TikTok/Reels ads.</p>
+              <p><strong className="text-violet-300">Premium:</strong> Seedance/Runway-style models for hero campaigns and paid ads.</p>
+              <Separator className="bg-zinc-800" />
+              <p className="text-xs text-zinc-500">Production implementation should keep API keys server-side, estimate clip cost before generation, and deduct app credits only after the user approves spend.</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

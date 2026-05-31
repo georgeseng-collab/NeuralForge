@@ -9,6 +9,12 @@ import {
   type AppSettings,
   type ConnectionStatus,
   type GenerationProgress,
+  type BrandProfile,
+  type SocialLink,
+  type ProductItem,
+  type CampaignDraft,
+  type ScheduledPost,
+  type AiVideoProviderSettings,
   DEFAULT_MODELS,
   DEFAULT_BLOCKED_PROMPTS,
 } from './types';
@@ -35,6 +41,24 @@ interface NeuralForgeStore {
   setGeneratedVideo: (url: string | null) => void;
   generatedVideoUrl: string | null;
   setGeneratedVideoUrl: (url: string | null) => void;
+
+  // SG Growth Studio
+  brandProfile: BrandProfile;
+  updateBrandProfile: (settings: Partial<BrandProfile>) => void;
+  socialLinks: SocialLink[];
+  updateSocialLink: (platform: SocialLink['platform'], updates: Partial<SocialLink>) => void;
+  products: ProductItem[];
+  addProduct: (product: ProductItem) => void;
+  updateProduct: (id: string, updates: Partial<ProductItem>) => void;
+  removeProduct: (id: string) => void;
+  campaignDrafts: CampaignDraft[];
+  addCampaignDraft: (draft: CampaignDraft) => void;
+  removeCampaignDraft: (id: string) => void;
+  scheduledPosts: ScheduledPost[];
+  addScheduledPost: (post: ScheduledPost) => void;
+  updateScheduledPost: (id: string, updates: Partial<ScheduledPost>) => void;
+  aiVideoProviderSettings: AiVideoProviderSettings;
+  updateAiVideoProviderSettings: (settings: Partial<AiVideoProviderSettings>) => void;
 
   // Gallery
   gallery: GalleryItem[];
@@ -131,6 +155,80 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   setGeneratedVideo: (url) => set({ generatedVideo: url }),
   generatedVideoUrl: null,
   setGeneratedVideoUrl: (url) => set({ generatedVideoUrl: url }),
+
+  // SG Growth Studio
+  brandProfile: {
+    businessName: 'NeuralForge SG Store',
+    industry: 'Ecommerce reselling',
+    targetAudience: 'Singapore shoppers aged 25-40 looking for value-for-money deals',
+    offer: 'Affordable trending products with islandwide delivery',
+    uniqueSellingPoint: 'Singapore-localized product recommendations, fast replies, and easy WhatsApp ordering',
+    tone: 'friendly',
+    language: 'singlish-light',
+    singaporeZones: ['Tampines', 'Jurong', 'Woodlands', 'CBD'],
+    primaryGoal: 'ecommerce',
+    whatsappNumber: '',
+    pdpaConsentPurpose: 'To respond to enquiries, process orders, and send opted-in marketing updates.',
+  },
+  updateBrandProfile: (settings) =>
+    set((state) => ({ brandProfile: { ...state.brandProfile, ...settings } })),
+  socialLinks: [
+    { platform: 'instagram', label: 'Instagram', url: '', connected: false, oauthStatus: 'not-connected' },
+    { platform: 'facebook', label: 'Facebook Page', url: '', connected: false, oauthStatus: 'not-connected' },
+    { platform: 'tiktok', label: 'TikTok', url: '', connected: false, oauthStatus: 'not-connected' },
+    { platform: 'whatsapp', label: 'WhatsApp', url: '', connected: false, oauthStatus: 'manual-link' },
+    { platform: 'shopee', label: 'Shopee', url: '', connected: false, oauthStatus: 'manual-link' },
+    { platform: 'lazada', label: 'Lazada', url: '', connected: false, oauthStatus: 'manual-link' },
+    { platform: 'tiktokShop', label: 'TikTok Shop', url: '', connected: false, oauthStatus: 'manual-link' },
+    { platform: 'carousell', label: 'Carousell', url: '', connected: false, oauthStatus: 'manual-link' },
+    { platform: 'website', label: 'Website / Landing Page', url: '', connected: false, oauthStatus: 'manual-link' },
+  ],
+  updateSocialLink: (platform, updates) =>
+    set((state) => ({
+      socialLinks: state.socialLinks.map((link) =>
+        link.platform === platform ? { ...link, ...updates } : link
+      ),
+    })),
+  products: [
+    {
+      id: 'starter-product',
+      name: 'Sample Trending Product',
+      category: 'Beauty / Lifestyle',
+      price: '29.90',
+      promoPrice: '24.90',
+      stock: '50',
+      benefits: 'Affordable, easy to use, suitable for Singapore daily lifestyle.',
+      targetBuyer: 'Busy Singapore shoppers who want convenience and value.',
+      orderLink: '',
+      deliveryInfo: 'Islandwide delivery available.',
+    },
+  ],
+  addProduct: (product) => set((state) => ({ products: [product, ...state.products] })),
+  updateProduct: (id, updates) =>
+    set((state) => ({
+      products: state.products.map((product) => product.id === id ? { ...product, ...updates } : product),
+    })),
+  removeProduct: (id) =>
+    set((state) => ({ products: state.products.filter((product) => product.id !== id) })),
+  campaignDrafts: [],
+  addCampaignDraft: (draft) => set((state) => ({ campaignDrafts: [draft, ...state.campaignDrafts] })),
+  removeCampaignDraft: (id) =>
+    set((state) => ({ campaignDrafts: state.campaignDrafts.filter((draft) => draft.id !== id) })),
+  scheduledPosts: [],
+  addScheduledPost: (post) => set((state) => ({ scheduledPosts: [post, ...state.scheduledPosts] })),
+  updateScheduledPost: (id, updates) =>
+    set((state) => ({
+      scheduledPosts: state.scheduledPosts.map((post) => post.id === id ? { ...post, ...updates } : post),
+    })),
+  aiVideoProviderSettings: {
+    preferredProvider: 'replicate',
+    budgetMode: 'draft',
+    monthlyBudgetSgd: '50',
+    requireApprovalBeforeSpend: true,
+    trueMotionEnabled: false,
+  },
+  updateAiVideoProviderSettings: (settings) =>
+    set((state) => ({ aiVideoProviderSettings: { ...state.aiVideoProviderSettings, ...settings } })),
 
   // Gallery
   gallery: [],
