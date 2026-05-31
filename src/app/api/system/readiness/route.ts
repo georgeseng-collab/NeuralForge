@@ -3,7 +3,10 @@ import { getSupabaseConfig } from '@/lib/supabase';
 
 export async function GET() {
   const supabase = getSupabaseConfig();
-  const klingConfigured = Boolean(process.env.KLING_ACCESS_KEY && process.env.KLING_SECRET_KEY);
+  const klingConfigured = Boolean(
+    (process.env.KLING_ACCESS_KEY || process.env.KLING_API_KEY) &&
+    (process.env.KLING_SECRET_KEY || process.env.KLING_API_SECRET)
+  );
 
   return NextResponse.json({
     supabase: {
@@ -13,7 +16,7 @@ export async function GET() {
     },
     kling: {
       configured: klingConfigured,
-      requiredEnv: ['KLING_ACCESS_KEY', 'KLING_SECRET_KEY', 'KLING_API_BASE_URL'],
+      requiredEnv: ['KLING_ACCESS_KEY or KLING_API_KEY', 'KLING_SECRET_KEY or KLING_API_SECRET', 'KLING_API_BASE_URL'],
     },
     storage: {
       recommendedBuckets: ['media-assets', 'kling-clips', 'post-thumbnails'],

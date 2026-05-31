@@ -17,8 +17,8 @@ const KLING_PRICE_PER_SECOND_USD: Record<string, number> = {
 };
 
 function getKlingConfig() {
-  const accessKey = process.env.KLING_ACCESS_KEY || '';
-  const secretKey = process.env.KLING_SECRET_KEY || '';
+  const accessKey = process.env.KLING_ACCESS_KEY || process.env.KLING_API_KEY || '';
+  const secretKey = process.env.KLING_SECRET_KEY || process.env.KLING_API_SECRET || '';
   const baseUrl = (process.env.KLING_API_BASE_URL || 'https://api.klingai.com/v1').replace(/\/$/, '');
   return {
     accessKey,
@@ -175,12 +175,12 @@ export async function GET(request: NextRequest) {
     provider: 'kling',
     configured: config.configured,
     baseUrl: config.baseUrl,
-    requiredEnv: ['KLING_ACCESS_KEY', 'KLING_SECRET_KEY', 'KLING_API_BASE_URL'],
+    requiredEnv: ['KLING_ACCESS_KEY or KLING_API_KEY', 'KLING_SECRET_KEY or KLING_API_SECRET', 'KLING_API_BASE_URL'],
     supportedDurations: [5, 10],
     recommendedLongForm: [60, 90],
     note: config.configured
       ? 'Kling access/secret keys detected. Paid scene submission is available server-side.'
-      : 'Set KLING_ACCESS_KEY and KLING_SECRET_KEY server-side before enabling paid true-motion generation.',
+      : 'Set KLING_ACCESS_KEY/KLING_SECRET_KEY or KLING_API_KEY/KLING_API_SECRET server-side before enabling paid true-motion generation.',
   });
 }
 
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         status: 'needs_configuration',
         estimatedCostUsd,
         totalSeconds,
-        detail: 'Kling credentials are not configured. Add KLING_ACCESS_KEY and KLING_SECRET_KEY server-side before submitting paid true-motion jobs.',
+        detail: 'Kling credentials are not configured. Add KLING_ACCESS_KEY/KLING_SECRET_KEY or KLING_API_KEY/KLING_API_SECRET server-side before submitting paid true-motion jobs.',
       },
       { status: 409 },
     );
