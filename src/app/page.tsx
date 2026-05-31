@@ -1631,6 +1631,7 @@ function GrowthStudioPanel() {
     consentPurpose: brandProfile.pdpaConsentPurpose,
     notes: '',
   });
+  const [klingStatus, setKlingStatus] = useState<'unknown' | 'configured' | 'missing'>('unknown');
 
   const primaryOrderLink = socialLinks.find((link) => ['shopee', 'lazada', 'tiktokShop', 'website', 'whatsapp'].includes(link.platform) && link.url)?.url || '';
   const connectedPublishingCount = socialLinks.filter((link) => ['instagram', 'facebook', 'tiktok'].includes(link.platform) && link.oauthStatus === 'connected').length;
@@ -1734,6 +1735,90 @@ function GrowthStudioPanel() {
       notes: '',
     });
     toast.success('Lead captured');
+  };
+
+  const estimateKlingCost = (
+    targetDuration = aiVideoProviderSettings.targetDurationSeconds,
+    mode = aiVideoProviderSettings.klingMode,
+    resolution = aiVideoProviderSettings.klingResolution,
+  ) => {
+    const priceTable: Record<string, number> = {
+      'standard:720p': 0.075,
+      'standard:1080p': 0.1,
+      'professional:720p': 0.1125,
+      'professional:1080p': 0.15,
+    };
+    const unit = priceTable[`${mode}:${resolution}`] || priceTable['standard:720p'];
+    return (targetDuration * unit).toFixed(2);
+  };
+
+  const rebuildKlingScenes = (
+    targetDuration = aiVideoProviderSettings.targetDurationSeconds,
+    sceneLength = aiVideoProviderSettings.sceneLengthSeconds,
+  ) => {
+    const sceneCount = Math.ceil(targetDuration / sceneLength);
+    const templates = ['Hook', 'Problem', 'Product', 'Benefits', 'Proof', 'CTA', 'Objection', 'Offer', 'Final CTA'];
+    const scenes = Array.from({ length: sceneCount }, (_, index) => {
+      const title = templates[index] || `Scene ${index + 1}`;
+      return {
+        id: crypto.randomUUID(),
+        order: index + 1,
+        duration: sceneLength,
+        title,
+        prompt: `${title} scene for ${brandProfile.businessName}: ${brandProfile.offer}. Singapore ecommerce/social ad, clear subject motion, vertical social video, compelling ${brandProfile.primaryGoal} CTA.`,
+        status: 'planned' as const,
+      };
+    });
+    updateAiVideoProviderSettings({
+      targetDurationSeconds: targetDuration,
+      sceneLengthSeconds: sceneLength,
+      estimatedCostUsd: estimateKlingCost(targetDuration),
+      scenePlan: scenes,
+    });
+  };
+
+  const updateKlingScenePrompt = (sceneId: string, prompt: string) => {
+    updateAiVideoProviderSettings({
+      scenePlan: aiVideoProviderSettings.scenePlan.map((scene) =>
+        scene.id === sceneId ? { ...scene, prompt } : scene
+      ),
+    });
+  };
+
+  const checkKlingProvider = async () => {
+    try {
+      const res = await fetch('/api/providers/kling');
+      const data = await res.json();
+      setKlingStatus(data.configured ? 'configured' : 'missing');
+      toast[data.configured ? 'success' : 'info'](data.note || 'Kling provider checked');
+    } catch (error: any) {
+      setKlingStatus('missing');
+      toast.error(error.message || 'Unable to check Kling provider');
+    }
+  };
+
+  const submitKlingPlan = async () => {
+    try {
+      const res = await fetch('/api/providers/kling', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: aiVideoProviderSettings.klingMode,
+          resolution: aiVideoProviderSettings.klingResolution,
+          scenes: aiVideoProviderSettings.scenePlan,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setKlingStatus('missing');
+        toast.error(data.detail || 'Kling provider is not configured');
+        return;
+      }
+      setKlingStatus('configured');
+      toast.success(data.detail || 'Kling plan is ready for provider adapter');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit Kling plan');
+    }
   };
 
   return (
@@ -2122,7 +2207,7 @@ function GrowthStudioPanel() {
                   <Label>Preferred Provider</Label>
                   <Select value={aiVideoProviderSettings.preferredProvider} onValueChange={(value: AiVideoProviderSettings['preferredProvider']) => updateAiVideoProviderSettings({ preferredProvider: value })}>
                     <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-zinc-800 border-zinc-700">{['replicate', 'fal', 'kling', 'seedance'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">{['kling', 'replicate', 'fal', 'seedance'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
@@ -2136,6 +2221,62 @@ function GrowthStudioPanel() {
               <div className="space-y-2">
                 <Label>Monthly AI Video Budget (SGD)</Label>
                 <Input value={aiVideoProviderSettings.monthlyBudgetSgd} onChange={(e) => updateAiVideoProviderSettings({ monthlyBudgetSgd: e.target.value })} className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Target Video Length</Label>
+                  <Select value={`${aiVideoProviderSettings.targetDurationSeconds}`} onValueChange={(value) => rebuildKlingScenes(Number(value) as 15 | 30 | 60 | 90, aiVideoProviderSettings.sceneLengthSeconds)}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {[15, 30, 60, 90].map((duration) => <SelectItem key={duration} value={`${duration}`}>{duration}s</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Scene Length</Label>
+                  <Select value={`${aiVideoProviderSettings.sceneLengthSeconds}`} onValueChange={(value) => rebuildKlingScenes(aiVideoProviderSettings.targetDurationSeconds, Number(value) as 5 | 10)}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {[5, 10].map((duration) => <SelectItem key={duration} value={`${duration}`}>{duration}s scenes</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Kling Mode</Label>
+                  <Select value={aiVideoProviderSettings.klingMode} onValueChange={(value: AiVideoProviderSettings['klingMode']) => updateAiVideoProviderSettings({ klingMode: value, estimatedCostUsd: estimateKlingCost(aiVideoProviderSettings.targetDurationSeconds, value, aiVideoProviderSettings.klingResolution) })}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {['standard', 'professional'].map((mode) => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Resolution</Label>
+                  <Select value={aiVideoProviderSettings.klingResolution} onValueChange={(value: AiVideoProviderSettings['klingResolution']) => updateAiVideoProviderSettings({ klingResolution: value, estimatedCostUsd: estimateKlingCost(aiVideoProviderSettings.targetDurationSeconds, aiVideoProviderSettings.klingMode, value) })}>
+                    <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {['720p', '1080p'].map((resolution) => <SelectItem key={resolution} value={resolution}>{resolution}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="rounded-lg border border-violet-500/30 bg-violet-600/10 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-violet-200">Kling long-form plan</p>
+                    <p className="text-xs text-zinc-400">
+                      {aiVideoProviderSettings.scenePlan.length} scenes x {aiVideoProviderSettings.sceneLengthSeconds}s = {aiVideoProviderSettings.targetDurationSeconds}s target
+                    </p>
+                  </div>
+                  <Badge className="bg-violet-600/30 text-violet-200 border-0">Est. US${aiVideoProviderSettings.estimatedCostUsd}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <Button variant="outline" className="border-zinc-700" onClick={checkKlingProvider}>Check Kling Key</Button>
+                  <Button className="bg-violet-600 hover:bg-violet-500" onClick={submitKlingPlan}>Submit Plan Check</Button>
+                </div>
+                <p className={`text-[10px] mt-2 ${klingStatus === 'configured' ? 'text-emerald-300' : klingStatus === 'missing' ? 'text-amber-300' : 'text-zinc-500'}`}>
+                  Status: {klingStatus === 'unknown' ? 'not checked' : klingStatus === 'configured' ? 'KLING_API_KEY detected server-side' : 'KLING_API_KEY missing server-side'}
+                </p>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-zinc-800 p-3">
                 <div>
@@ -2151,14 +2292,39 @@ function GrowthStudioPanel() {
                 </div>
                 <Switch checked={aiVideoProviderSettings.trueMotionEnabled} onCheckedChange={(checked) => updateAiVideoProviderSettings({ trueMotionEnabled: checked })} />
               </div>
+              <div className="space-y-2">
+                <Label>Kling Scene Plan</Label>
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                  {aiVideoProviderSettings.scenePlan.map((scene) => (
+                    <div key={scene.id} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className="bg-zinc-800 text-zinc-300 border-0">#{scene.order}</Badge>
+                        <Input
+                          value={scene.title}
+                          onChange={(e) => updateAiVideoProviderSettings({
+                            scenePlan: aiVideoProviderSettings.scenePlan.map((item) => item.id === scene.id ? { ...item, title: e.target.value } : item),
+                          })}
+                          className="bg-transparent border-0 p-0 h-auto text-sm font-semibold text-zinc-200"
+                        />
+                        <Badge className="ml-auto bg-amber-600/20 text-amber-300 border-0">{scene.duration}s</Badge>
+                      </div>
+                      <Textarea
+                        value={scene.prompt}
+                        onChange={(e) => updateKlingScenePrompt(scene.id, e.target.value)}
+                        className="bg-zinc-800/50 border-zinc-700 min-h-[70px] text-xs"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader><CardTitle className="text-sm text-zinc-300">Value-for-Money Routing</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-zinc-400">
-              <p><strong className="text-emerald-300">Draft:</strong> Wan/Kling fast models for cheap prompt testing.</p>
-              <p><strong className="text-cyan-300">Standard:</strong> Kling or Luma-style providers for normal TikTok/Reels ads.</p>
-              <p><strong className="text-violet-300">Premium:</strong> Seedance/Runway-style models for hero campaigns and paid ads.</p>
+              <p><strong className="text-emerald-300">Primary:</strong> Kling is now the main provider for 60-90s true-motion workflows.</p>
+              <p><strong className="text-cyan-300">Method:</strong> Generate 5s/10s scenes, extend or stitch them into a 60s/90s final video.</p>
+              <p><strong className="text-violet-300">Premium:</strong> Seedance/Runway remain optional hero-campaign fallbacks after Kling is stable.</p>
               <Separator className="bg-zinc-800" />
               <p className="text-xs text-zinc-500">Production implementation should keep API keys server-side, estimate clip cost before generation, and deduct app credits only after the user approves spend.</p>
             </CardContent>

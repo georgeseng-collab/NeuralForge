@@ -118,11 +118,28 @@ export interface ScheduledPost {
 }
 
 export interface AiVideoProviderSettings {
-  preferredProvider: 'replicate' | 'fal' | 'kling' | 'seedance';
+  preferredProvider: 'kling' | 'replicate' | 'fal' | 'seedance';
   budgetMode: 'draft' | 'standard' | 'premium';
   monthlyBudgetSgd: string;
   requireApprovalBeforeSpend: boolean;
   trueMotionEnabled: boolean;
+  targetDurationSeconds: 15 | 30 | 60 | 90;
+  sceneLengthSeconds: 5 | 10;
+  klingMode: 'standard' | 'professional';
+  klingResolution: '720p' | '1080p';
+  estimatedCostUsd: string;
+  scenePlan: TrueMotionScene[];
+}
+
+export interface TrueMotionScene {
+  id: string;
+  order: number;
+  duration: number;
+  title: string;
+  prompt: string;
+  status: 'planned' | 'queued' | 'generating' | 'ready' | 'failed';
+  providerTaskId?: string;
+  videoUrl?: string;
 }
 
 export interface WorkspaceSession {
