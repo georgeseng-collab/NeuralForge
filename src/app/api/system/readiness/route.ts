@@ -1,0 +1,29 @@
+import { NextResponse } from 'next/server';
+import { getSupabaseConfig } from '@/lib/supabase';
+
+export async function GET() {
+  const supabase = getSupabaseConfig();
+  const klingConfigured = Boolean(
+    (process.env.KLING_ACCESS_KEY || process.env.KLING_API_KEY) &&
+    (process.env.KLING_SECRET_KEY || process.env.KLING_API_SECRET)
+  );
+
+  return NextResponse.json({
+    supabase: {
+      configured: supabase.configured,
+      serviceConfigured: supabase.serviceConfigured,
+      requiredEnv: ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'],
+    },
+    kling: {
+      configured: klingConfigured,
+      requiredEnv: ['KLING_ACCESS_KEY or KLING_API_KEY', 'KLING_SECRET_KEY or KLING_API_SECRET', 'KLING_API_BASE_URL'],
+    },
+    storage: {
+      recommendedBuckets: ['media-assets', 'kling-clips', 'post-thumbnails'],
+    },
+    scheduler: {
+      configured: Boolean(process.env.SCHEDULER_SECRET),
+      requiredEnv: ['SCHEDULER_SECRET'],
+    },
+  });
+}
