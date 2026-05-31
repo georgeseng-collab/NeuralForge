@@ -364,6 +364,8 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   updateAiVideoProviderSettings: (settings) =>
     set((state) => ({ aiVideoProviderSettings: { ...state.aiVideoProviderSettings, ...settings } })),
   workspaceSession: {
+    userId: '',
+    workspaceId: '',
     userName: 'Owner',
     email: '',
     workspaceName: 'NeuralForge SG Workspace',

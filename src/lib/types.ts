@@ -173,6 +173,8 @@ export interface TrueMotionScene {
 }
 
 export interface WorkspaceSession {
+  userId: string;
+  workspaceId: string;
   userName: string;
   email: string;
   workspaceName: string;

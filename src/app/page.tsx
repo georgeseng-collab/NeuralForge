@@ -11,6 +11,7 @@ import {
   Wand2, Paintbrush, Camera, Video, Share2
 } from 'lucide-react';
 import { useNeuralForgeStore } from '@/lib/store';
+import { createBrowserSupabaseClient } from '@/lib/supabase';
 import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
   IMAGE_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
@@ -1684,6 +1685,9 @@ function GrowthStudioPanel() {
     videoUrl?: string;
     errorMessage?: string;
   }[]>([]);
+  const [authEmail, setAuthEmail] = useState(workspaceSession.email || '');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [systemReadiness, setSystemReadiness] = useState<{
     supabase?: { configured: boolean; serviceConfigured: boolean };
     kling?: { configured: boolean };
@@ -1702,6 +1706,81 @@ function GrowthStudioPanel() {
     };
     checkReadiness();
   }, []);
+
+  const bootstrapWorkspace = async (accessToken: string, fallbackEmail?: string) => {
+    const res = await fetch('/api/workspace/bootstrap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        workspaceName: workspaceSession.workspaceName,
+        businessName: brandProfile.businessName,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to bootstrap workspace');
+
+    updateWorkspaceSession({
+      userId: data.user?.id || '',
+      workspaceId: data.workspace?.id || '',
+      email: data.user?.email || fallbackEmail || '',
+      workspaceName: data.workspace?.name || workspaceSession.workspaceName,
+      authProvider: 'supabase',
+      isLoggedIn: true,
+      role: data.role || 'owner',
+    });
+    return data;
+  };
+
+  const handleSupabaseAuth = async (mode: 'sign-in' | 'sign-up') => {
+    if (!authEmail.trim() || !authPassword) {
+      toast.error('Email and password are required');
+      return;
+    }
+
+    const supabase = createBrowserSupabaseClient();
+    if (!supabase) {
+      toast.error('Supabase client env vars are not configured.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const result = mode === 'sign-in'
+        ? await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword })
+        : await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword });
+
+      if (result.error) throw result.error;
+      const session = result.data.session;
+      if (!session?.access_token) {
+        toast.info('Check your email to confirm signup, then sign in.');
+        return;
+      }
+
+      await bootstrapWorkspace(session.access_token, authEmail.trim());
+      setAuthPassword('');
+      toast.success(mode === 'sign-in' ? 'Signed in and workspace loaded' : 'Account created and workspace loaded');
+    } catch (error: any) {
+      toast.error(error.message || 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSupabaseSignOut = async () => {
+    const supabase = createBrowserSupabaseClient();
+    await supabase?.auth.signOut();
+    updateWorkspaceSession({
+      userId: '',
+      workspaceId: '',
+      isLoggedIn: false,
+      authProvider: 'local-preview',
+      email: '',
+    });
+    toast.success('Signed out');
+  };
 
   const primaryOrderLink = socialLinks.find((link) => ['shopee', 'lazada', 'tiktokShop', 'website', 'whatsapp'].includes(link.platform) && link.url)?.url || '';
   const connectedPublishingCount = socialLinks.filter((link) => ['instagram', 'facebook', 'tiktok'].includes(link.platform) && link.oauthStatus === 'connected').length;
@@ -2088,7 +2167,7 @@ function GrowthStudioPanel() {
       {section === 'account' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="bg-zinc-900/50 border-zinc-800">
-            <CardHeader><CardTitle className="text-sm text-zinc-300">Workspace Login Readiness</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Workspace Login</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
@@ -2097,12 +2176,19 @@ function GrowthStudioPanel() {
                 </div>
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input value={workspaceSession.email} onChange={(e) => updateWorkspaceSession({ email: e.target.value })} placeholder="owner@example.com" className="bg-zinc-800/50 border-zinc-700" />
+                  <Input value={authEmail} onChange={(e) => {
+                    setAuthEmail(e.target.value);
+                    updateWorkspaceSession({ email: e.target.value });
+                  }} placeholder="owner@example.com" className="bg-zinc-800/50 border-zinc-700" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Workspace Name</Label>
                 <Input value={workspaceSession.workspaceName} onChange={(e) => updateWorkspaceSession({ workspaceName: e.target.value })} className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Input type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="Supabase account password" className="bg-zinc-800/50 border-zinc-700" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
@@ -2124,15 +2210,26 @@ function GrowthStudioPanel() {
                   </Select>
                 </div>
               </div>
-              <Button
-                onClick={() => {
-                  updateWorkspaceSession({ isLoggedIn: !workspaceSession.isLoggedIn });
-                  toast.success(workspaceSession.isLoggedIn ? 'Preview user signed out' : 'Preview user signed in');
-                }}
-                className={workspaceSession.isLoggedIn ? 'w-full bg-zinc-700 hover:bg-zinc-600' : 'w-full bg-emerald-600 hover:bg-emerald-500'}
-              >
-                {workspaceSession.isLoggedIn ? 'Sign Out Preview User' : 'Sign In Preview User'}
-              </Button>
+              {workspaceSession.isLoggedIn ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-emerald-600/30 bg-emerald-600/10 p-3 text-xs text-emerald-200">
+                    Signed in as {workspaceSession.email || 'Supabase user'}.
+                    {workspaceSession.workspaceId && <span className="block mt-1 text-emerald-300">Workspace ID: {workspaceSession.workspaceId}</span>}
+                  </div>
+                  <Button onClick={handleSupabaseSignOut} className="w-full bg-zinc-700 hover:bg-zinc-600" disabled={authLoading}>
+                    Sign Out
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={() => handleSupabaseAuth('sign-in')} className="bg-emerald-600 hover:bg-emerald-500" disabled={authLoading}>
+                    Sign In
+                  </Button>
+                  <Button onClick={() => handleSupabaseAuth('sign-up')} variant="outline" className="border-zinc-700" disabled={authLoading}>
+                    Sign Up
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card className="bg-zinc-900/50 border-zinc-800">
