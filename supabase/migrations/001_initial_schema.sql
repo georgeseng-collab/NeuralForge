@@ -205,12 +205,80 @@ alter table public.scheduled_posts enable row level security;
 alter table public.leads enable row level security;
 alter table public.credit_ledger enable row level security;
 
--- RLS policy template. Apply after auth is connected:
--- create policy "workspace members can read workspace data" on public.brand_profiles
--- for select using (
---   exists (
---     select 1 from public.workspace_members m
---     where m.workspace_id = brand_profiles.workspace_id
---     and m.user_id = auth.uid()
---   )
--- );
+create or replace function public.is_workspace_member(target_workspace_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.workspace_members m
+    where m.workspace_id = target_workspace_id
+      and m.user_id = auth.uid()
+  );
+$$;
+
+create policy "members can read workspaces" on public.workspaces
+for select using (public.is_workspace_member(id) or owner_id = auth.uid());
+
+create policy "owners can manage workspaces" on public.workspaces
+for all using (owner_id = auth.uid())
+with check (owner_id = auth.uid());
+
+create policy "members can read memberships" on public.workspace_members
+for select using (public.is_workspace_member(workspace_id));
+
+create policy "owners can manage memberships" on public.workspace_members
+for all using (
+  exists (
+    select 1 from public.workspaces w
+    where w.id = workspace_members.workspace_id
+      and w.owner_id = auth.uid()
+  )
+) with check (
+  exists (
+    select 1 from public.workspaces w
+    where w.id = workspace_members.workspace_id
+      and w.owner_id = auth.uid()
+  )
+);
+
+create policy "members can manage brand profiles" on public.brand_profiles
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can manage social links" on public.social_links
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can manage characters" on public.characters
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can manage offers" on public.offers
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can manage campaign drafts" on public.campaign_drafts
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can manage media assets" on public.media_assets
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can manage kling jobs" on public.kling_jobs
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can manage scheduled posts" on public.scheduled_posts
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can manage leads" on public.leads
+for all using (public.is_workspace_member(workspace_id))
+with check (public.is_workspace_member(workspace_id));
+
+create policy "members can read credit ledger" on public.credit_ledger
+for select using (public.is_workspace_member(workspace_id));
