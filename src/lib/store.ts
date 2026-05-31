@@ -54,6 +54,7 @@ interface NeuralForgeStore {
   setSocialLinks: (links: SocialLink[]) => void;
   updateSocialLink: (platform: SocialLink['platform'], updates: Partial<SocialLink>) => void;
   products: ProductItem[];
+  setProducts: (products: ProductItem[]) => void;
   addProduct: (product: ProductItem) => void;
   updateProduct: (id: string, updates: Partial<ProductItem>) => void;
   removeProduct: (id: string) => void;
@@ -65,9 +66,11 @@ interface NeuralForgeStore {
   activeCharacterId: string;
   setActiveCharacter: (id: string) => void;
   campaignDrafts: CampaignDraft[];
+  setCampaignDrafts: (drafts: CampaignDraft[]) => void;
   addCampaignDraft: (draft: CampaignDraft) => void;
   removeCampaignDraft: (id: string) => void;
   scheduledPosts: ScheduledPost[];
+  setScheduledPosts: (posts: ScheduledPost[]) => void;
   addScheduledPost: (post: ScheduledPost) => void;
   updateScheduledPost: (id: string, updates: Partial<ScheduledPost>) => void;
   autoScheduleSettings: AutoScheduleSettings;
@@ -77,6 +80,7 @@ interface NeuralForgeStore {
   workspaceSession: WorkspaceSession;
   updateWorkspaceSession: (settings: Partial<WorkspaceSession>) => void;
   leads: LeadRecord[];
+  setLeads: (leads: LeadRecord[]) => void;
   addLead: (lead: LeadRecord) => void;
   updateLead: (id: string, updates: Partial<LeadRecord>) => void;
   removeLead: (id: string) => void;
@@ -226,6 +230,7 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
       deliveryInfo: 'Islandwide delivery available.',
     },
   ],
+  setProducts: (products) => set({ products }),
   addProduct: (product) => set((state) => ({ products: [product, ...state.products] })),
   updateProduct: (id, updates) =>
     set((state) => ({
@@ -288,10 +293,12 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
       characters: state.characters.map((character) => ({ ...character, active: character.id === id })),
     })),
   campaignDrafts: [],
+  setCampaignDrafts: (drafts) => set({ campaignDrafts: drafts }),
   addCampaignDraft: (draft) => set((state) => ({ campaignDrafts: [draft, ...state.campaignDrafts] })),
   removeCampaignDraft: (id) =>
     set((state) => ({ campaignDrafts: state.campaignDrafts.filter((draft) => draft.id !== id) })),
   scheduledPosts: [],
+  setScheduledPosts: (posts) => set({ scheduledPosts: posts }),
   addScheduledPost: (post) => set((state) => ({ scheduledPosts: [post, ...state.scheduledPosts] })),
   updateScheduledPost: (id, updates) =>
     set((state) => ({
@@ -385,6 +392,7 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   updateWorkspaceSession: (settings) =>
     set((state) => ({ workspaceSession: { ...state.workspaceSession, ...settings } })),
   leads: [],
+  setLeads: (leads) => set({ leads }),
   addLead: (lead) => set((state) => ({ leads: [lead, ...state.leads] })),
   updateLead: (id, updates) =>
     set((state) => ({ leads: state.leads.map((lead) => lead.id === id ? { ...lead, ...updates } : lead) })),

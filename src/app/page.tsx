@@ -1609,6 +1609,7 @@ function GrowthStudioPanel() {
     setSocialLinks,
     updateSocialLink,
     products,
+    setProducts,
     addProduct,
     updateProduct,
     removeProduct,
@@ -1620,9 +1621,11 @@ function GrowthStudioPanel() {
     activeCharacterId,
     setActiveCharacter,
     campaignDrafts,
+    setCampaignDrafts,
     addCampaignDraft,
     removeCampaignDraft,
     scheduledPosts,
+    setScheduledPosts,
     addScheduledPost,
     updateScheduledPost,
     autoScheduleSettings,
@@ -1632,6 +1635,7 @@ function GrowthStudioPanel() {
     workspaceSession,
     updateWorkspaceSession,
     leads,
+    setLeads,
     addLead,
     updateLead,
     removeLead,
@@ -1807,7 +1811,11 @@ function GrowthStudioPanel() {
       if (data.brandProfile) setBrandProfile(data.brandProfile);
       if (Array.isArray(data.socialLinks) && data.socialLinks.length) setSocialLinks(data.socialLinks);
       if (Array.isArray(data.characters) && data.characters.length) setCharacters(data.characters);
-      toast.success('Workspace data loaded from Supabase');
+      if (Array.isArray(data.products)) setProducts(data.products);
+      if (Array.isArray(data.campaignDrafts)) setCampaignDrafts(data.campaignDrafts);
+      if (Array.isArray(data.scheduledPosts)) setScheduledPosts(data.scheduledPosts);
+      if (Array.isArray(data.leads)) setLeads(data.leads);
+      toast.success('Full workspace data loaded from Supabase');
     } catch (error: any) {
       toast.error(error.message || 'Failed to load workspace data');
     }
@@ -1828,11 +1836,15 @@ function GrowthStudioPanel() {
           brandProfile,
           socialLinks,
           characters,
+          products,
+          campaignDrafts,
+          scheduledPosts,
+          leads,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to save workspace data');
-      toast.success('Brand, links and characters saved to Supabase');
+      toast.success('Full Growth Studio snapshot saved to Supabase');
     } catch (error: any) {
       toast.error(error.message || 'Failed to save workspace data');
     }
