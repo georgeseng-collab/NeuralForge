@@ -145,6 +145,54 @@ async function fetchImageAsBase64(url: string, timeout = 90000): Promise<string>
   return `data:${mime};base64,${base64}`;
 }
 
+function buildPollinationsVideoUrl(
+  prompt: string,
+  model: string,
+  duration: number,
+  aspectRatio: string,
+  seed?: number,
+): string {
+  const encodedPrompt = encodeURIComponent(prompt);
+  const params = new URLSearchParams();
+  params.set('model', model);
+  params.set('duration', String(duration));
+  params.set('aspectRatio', aspectRatio);
+  params.set('nologo', 'true');
+  if (seed !== undefined && seed !== null) params.set('seed', String(seed));
+  return `https://gen.pollinations.ai/video/${encodedPrompt}?${params.toString()}`;
+}
+
+async function fetchVideoAsBase64(url: string, timeout = 300000): Promise<{ videoBase64: string; mime: string }> {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(timeout),
+    headers: {
+      Accept: 'video/mp4,video/webm,*/*',
+    },
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`Free real AI video returned ${response.status}${errText ? `: ${errText.slice(0, 180)}` : ''}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  const arrayBuffer = await response.arrayBuffer();
+  const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
+  const isJpeg = firstBytes[0] === 0xFF && firstBytes[1] === 0xD8;
+  const isPng = firstBytes[0] === 0x89 && firstBytes[1] === 0x50 && firstBytes[2] === 0x4E && firstBytes[3] === 0x47;
+
+  if (contentType.includes('image/') || isJpeg || isPng) {
+    throw new Error('Free real AI video returned a still image instead of actual video. Try again or use Long Motion mode.');
+  }
+
+  if (arrayBuffer.byteLength < 10000) {
+    throw new Error('Free real AI video returned an empty or corrupted clip. Try again with a shorter prompt.');
+  }
+
+  const mime = contentType.includes('webm') ? 'video/webm' : 'video/mp4';
+  return { videoBase64: Buffer.from(arrayBuffer).toString('base64'), mime };
+}
+
 // ─── Enhanced Prompt Builder ────────────────────────────────────────────────
 function buildEnhancedPrompt(
   prompt: string,
@@ -215,6 +263,56 @@ export async function generateImage(
     const placeholder = generatePlaceholderImage(prompt, style, width, height);
     return { imageUrl: placeholder, isReal: false, provider: 'placeholder', modelUsed: 'SVG Placeholder' };
   }
+}
+
+export async function generateFreeRealVideo(
+  prompt: string,
+  style: string = 'Cinematic',
+  width: number = 1344,
+  height: number = 768,
+  modelId: string = 'wan-fast',
+  duration: number = 5,
+  seed?: number,
+  negativePrompt: string = '',
+): Promise<{
+  videoBase64: string;
+  isReal: boolean;
+  provider: string;
+  modelUsed: string;
+  duration: number;
+  width: number;
+  height: number;
+  mime: string;
+}> {
+  const maxDurations: Record<string, number> = {
+    'wan-fast': 5,
+    'ltx-2': 5,
+    'seedance-pro': 8,
+    'p-video': 8,
+  };
+  const resolvedModelId = maxDurations[modelId] ? modelId : 'wan-fast';
+  const clampedDuration = Math.min(Math.max(duration, 3), maxDurations[resolvedModelId]);
+  const aspectRatio = height > width ? '9:16' : width > height ? '16:9' : '1:1';
+  const enhancedPrompt = buildEnhancedPrompt(prompt, style, negativePrompt, true);
+  const videoUrl = buildPollinationsVideoUrl(
+    enhancedPrompt,
+    resolvedModelId,
+    clampedDuration,
+    aspectRatio,
+    seed || seed_base(`${prompt}-${resolvedModelId}`),
+  );
+
+  const result = await fetchVideoAsBase64(videoUrl, 300000);
+  return {
+    videoBase64: result.videoBase64,
+    isReal: true,
+    provider: 'pollinations-real-video',
+    modelUsed: resolvedModelId,
+    duration: clampedDuration,
+    width,
+    height,
+    mime: result.mime,
+  };
 }
 
 // ─── Motion Video Generation (Free, No API Key) ────────────────────────────

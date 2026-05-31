@@ -101,15 +101,17 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   // Video Generation
   videoSettings: {
     prompt: '',
-    duration: 45,
+    duration: 5,
     fps: 12,
     width: 1344,
     height: 768,
     imageToVideo: false,
     sourceImage: null,
     modelId: 'gptimage',
+    realVideoModelId: 'wan-fast',
     socialPreset: 'youtube-video',
     negativePrompt: 'blurry, low quality, distorted, watermark, text',
+    generationMode: 'real',
     motionEffect: 'ken-burns',
   },
   updateVideoSettings: (settings) =>

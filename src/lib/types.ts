@@ -23,8 +23,10 @@ export interface VideoSettings {
   imageToVideo: boolean;
   sourceImage: string | null;
   modelId: string;
+  realVideoModelId: string;
   socialPreset: string;
   negativePrompt: string;
+  generationMode: 'real' | 'motion';
   motionEffect: 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'ken-burns' | 'drift';
 }
 
@@ -131,6 +133,8 @@ export const RESOLUTION_OPTIONS = [
 export const DURATION_OPTIONS = [2, 3, 5, 6, 8, 10, 15, 30, 45, 60] as const;
 export const FPS_OPTIONS = [2, 3, 4, 6, 8, 12, 24, 30] as const;
 
+export const REAL_VIDEO_DURATION_OPTIONS = [3, 5, 6, 8] as const;
+
 // ─── Social Media Video Presets ────────────────────────────────────────────
 export const VIDEO_PRESET_OPTIONS = [
   { id: 'instagram-reel', name: 'Instagram Reel', icon: '📱', width: 768, height: 1344, aspect: '9:16', desc: 'Vertical for Reels' },
@@ -189,6 +193,14 @@ export const MOTION_SOURCE_MODEL_OPTIONS = [
   { id: 'qwen-image', name: 'Qwen Image', description: 'Good multilingual prompt following', speed: 'Medium', badge: 'Smart' },
   { id: 'nova-canvas', name: 'Nova Canvas', description: 'Clean social/video compositions', speed: 'Medium', badge: 'Pro' },
   { id: 'zimage', name: 'ZImage', description: 'Balanced quality and speed', speed: 'Fast', badge: 'Speed' },
+] as const;
+
+// ─── Real text-to-video models that can be attempted without user API keys ───
+export const REAL_VIDEO_MODEL_OPTIONS = [
+  { id: 'wan-fast', name: 'Wan Fast', description: 'Fast real motion; best first try for dancing/action prompts', speed: 'Fast', badge: 'Best', maxDuration: 5 },
+  { id: 'ltx-2', name: 'LTX Video', description: 'Quick real AI movement for short clips', speed: 'Fast', badge: 'Speed', maxDuration: 5 },
+  { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt following when available', speed: 'Medium', badge: 'Pro', maxDuration: 8 },
+  { id: 'p-video', name: 'Pruna Video', description: 'Alternative free real-video endpoint', speed: 'Medium', badge: 'Creative', maxDuration: 8 },
 ] as const;
 
 export const DEFAULT_MODELS: AIModel[] = [

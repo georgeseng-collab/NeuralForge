@@ -14,7 +14,7 @@ import { useNeuralForgeStore } from '@/lib/store';
 import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
   IMAGE_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
-  MOTION_EFFECT_OPTIONS, MOTION_SOURCE_MODEL_OPTIONS,
+  MOTION_EFFECT_OPTIONS, MOTION_SOURCE_MODEL_OPTIONS, REAL_VIDEO_DURATION_OPTIONS, REAL_VIDEO_MODEL_OPTIONS,
   type GalleryItem, type SafetyLogEntry,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -856,8 +856,13 @@ function VideoGenPanel() {
     setGeneratedVideoUrl(null);
     setGeneratedVideo(null);
 
-    const motionModel = MOTION_SOURCE_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId) || MOTION_SOURCE_MODEL_OPTIONS[0];
-    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating free image with ${motionModel.name} for motion video...` });
+    if (videoSettings.generationMode === 'real') {
+      const realModel = REAL_VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.realVideoModelId) || REAL_VIDEO_MODEL_OPTIONS[0];
+      setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating real AI motion with ${realModel.name}...` });
+    } else {
+      const motionModel = MOTION_SOURCE_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId) || MOTION_SOURCE_MODEL_OPTIONS[0];
+      setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating free image with ${motionModel.name} for long motion video...` });
+    }
 
     try {
       const res = await fetch('/api/generate/video', {
@@ -865,8 +870,6 @@ function VideoGenPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...videoSettings,
-          videoMode: 'motion',
-          motionEffect: videoSettings.motionEffect,
         }),
       });
 
@@ -893,7 +896,8 @@ function VideoGenPanel() {
         setSourceImage(imageUrl);
         toast.success(`Image generated! Encoding ${data.duration || videoSettings.duration}s free motion video...`);
       } else {
-        // Real AI video mode: we get a video_base64
+        // Real AI clip mode: we get actual video bytes.
+        let url = data.video_url || '';
         if (data.video_base64) {
           let rawBase64 = data.video_base64;
           if (rawBase64.startsWith('data:')) {
@@ -906,38 +910,40 @@ function VideoGenPanel() {
           }
           const byteArray = new Uint8Array(byteNumbers);
           const blob = new Blob([byteArray], { type: data.video_mime || 'video/mp4' });
-          const url = URL.createObjectURL(blob);
-          setVideoBlobUrl(url);
-          setGeneratedVideoUrl(url);
-          setGeneratedVideo(url);
-        } else if (data.video_url) {
-          setGeneratedVideo(data.video_url);
-          setGeneratedVideoUrl(data.video_url);
+          url = URL.createObjectURL(blob);
         }
+        if (!url) throw new Error('Real AI video completed but no video was returned.');
+        setVideoBlobUrl(url);
+        setGeneratedVideoUrl(url);
+        setGeneratedVideo(url);
         addGalleryItem({
           id: crypto.randomUUID(),
           type: 'video',
           prompt: videoSettings.prompt,
           settings: { ...videoSettings },
-          url: data.video_url || data.thumbnail_url || '',
-          thumbnailUrl: data.thumbnail_url || data.video_url || '',
+          url,
+          thumbnailUrl: url,
           timestamp: Date.now(),
           isNsfw: data.is_nsfw || false,
           modelUsed: data.model_used,
           provider: data.provider,
+          videoUrl: url,
         });
-        toast.success(`AI video generated with ${data.model_used || 'AI'}!`);
+        toast.success(`Real AI video generated with ${data.model_used || 'AI'}!`);
       }
     } catch (err: any) {
       toast.error(err.message || 'Video generation failed.');
+      setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
     } finally {
       // Don't clear progress yet - encoding will happen after source image generation.
     }
   }, [videoSettings, safetySettings, setVideoProgress, setGeneratedVideo, setGeneratedVideoUrl, addGalleryItem, addSafetyLog, videoBlobUrl]);
 
   const currentVideoUrl = videoBlobUrl || generatedVideoUrl;
-  const maxSelectableDuration = 60;
-  const selectableDurations = DURATION_OPTIONS.filter((duration) => duration <= maxSelectableDuration);
+  const selectedRealModel = REAL_VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.realVideoModelId) || REAL_VIDEO_MODEL_OPTIONS[0];
+  const maxSelectableDuration = videoSettings.generationMode === 'real' ? selectedRealModel.maxDuration : 60;
+  const selectableDurations = (videoSettings.generationMode === 'real' ? REAL_VIDEO_DURATION_OPTIONS : DURATION_OPTIONS)
+    .filter((duration) => duration <= maxSelectableDuration);
   const selectedDurationValue = selectableDurations.includes(videoSettings.duration as typeof DURATION_OPTIONS[number])
     ? `${videoSettings.duration}`
     : `${selectableDurations[selectableDurations.length - 1] || 5}`;
@@ -965,14 +971,35 @@ function VideoGenPanel() {
               <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
                 <Camera className="w-4 h-4 text-amber-400" /> Free Video Mode
               </Label>
-              <div className="rounded-lg border border-amber-500/30 bg-amber-600/10 p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <Camera className="w-4 h-4 text-amber-400" />
-                  <span className="text-sm font-medium text-zinc-200">No API keys required</span>
-                </div>
-                <p className="text-xs text-zinc-400">
-                  NeuralForge creates a free AI source image, then encodes it in your browser as a 45-60 second motion video.
-                </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => updateVideoSettings({ generationMode: 'real', duration: Math.min(videoSettings.duration, selectedRealModel.maxDuration) })}
+                  className={`text-left p-3 rounded-lg border transition-all duration-150 ${
+                    videoSettings.generationMode === 'real'
+                      ? 'bg-violet-600/20 border-violet-500/50 shadow-lg shadow-violet-500/10'
+                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Video className="w-4 h-4 text-violet-400" />
+                    <span className="text-sm font-medium text-zinc-200">Real AI Clip</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500">Actual movement, short free clip</p>
+                </button>
+                <button
+                  onClick={() => updateVideoSettings({ generationMode: 'motion', duration: Math.max(videoSettings.duration, 45) })}
+                  className={`text-left p-3 rounded-lg border transition-all duration-150 ${
+                    videoSettings.generationMode === 'motion'
+                      ? 'bg-amber-600/20 border-amber-500/50 shadow-lg shadow-amber-500/10'
+                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Camera className="w-4 h-4 text-amber-400" />
+                    <span className="text-sm font-medium text-zinc-200">Long Motion</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500">45-60s animated image</p>
+                </button>
               </div>
             </CardContent>
           </Card>
@@ -1005,8 +1032,40 @@ function VideoGenPanel() {
             </CardContent>
           </Card>
 
-          {/* Free motion settings */}
-          <>
+          {videoSettings.generationMode === 'real' ? (
+            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
+              <CardContent className="p-4">
+                <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
+                  <Video className="w-4 h-4 text-violet-400" /> Real AI Video Model
+                </Label>
+                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
+                  {REAL_VIDEO_MODEL_OPTIONS.map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => updateVideoSettings({ realVideoModelId: model.id, duration: Math.min(videoSettings.duration, model.maxDuration) })}
+                      className={`text-left p-2.5 rounded-lg border transition-all duration-150
+                        ${videoSettings.realVideoModelId === model.id
+                          ? 'bg-violet-600/20 border-violet-500/50 shadow-lg shadow-violet-500/10'
+                          : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-zinc-200">{model.name}</span>
+                        <Badge className={`text-[9px] px-1.5 py-0 ${BADGE_COLORS[model.badge] || 'bg-zinc-600/30 text-zinc-300'}`}>
+                          {model.badge}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-3">
+                  Free no-key real AI clips are rate-limited and short. If unavailable, retry later or use Long Motion.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
               {/* Motion Source Image Model */}
               <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
                 <CardContent className="p-4">
@@ -1065,6 +1124,7 @@ function VideoGenPanel() {
                 </CardContent>
               </Card>
             </>
+          )}
 
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-5 space-y-5">
@@ -1080,7 +1140,9 @@ function VideoGenPanel() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-zinc-300">Duration (free 45-60s)</Label>
+                  <Label className="text-zinc-300">
+                    Duration{videoSettings.generationMode === 'real' ? ` (real clip max ${maxSelectableDuration}s)` : ' (long motion 45-60s)'}
+                  </Label>
                   <Select value={selectedDurationValue} onValueChange={(v) => {
                     const val = Number(v);
                     updateVideoSettings({ duration: Math.min(val, maxSelectableDuration) });
@@ -1112,18 +1174,24 @@ function VideoGenPanel() {
 
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5" />
-                {`${videoSettings.duration}s free motion video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · ${videoSettings.motionEffect}`}
+                {videoSettings.generationMode === 'real'
+                  ? `${videoSettings.duration}s real AI clip at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · actual generated motion`
+                  : `${videoSettings.duration}s long motion video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · ${videoSettings.motionEffect}`}
               </div>
 
               <Button
                 onClick={handleGenerate}
                 disabled={videoProgress.isGenerating || isEncoding}
-                className="w-full text-white font-semibold h-12 text-base shadow-lg bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-500/20"
+                className={`w-full text-white font-semibold h-12 text-base shadow-lg ${
+                  videoSettings.generationMode === 'real'
+                    ? 'bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 shadow-violet-500/20'
+                    : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-500/20'
+                }`}
               >
                 {videoProgress.isGenerating || isEncoding ? (
                   <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message || 'Encoding...'}</>
                 ) : (
-                  <><Film className="w-5 h-5 mr-2" /> Generate Free 45-60s Motion Video</>
+                  <><Film className="w-5 h-5 mr-2" /> {videoSettings.generationMode === 'real' ? 'Generate Real AI Clip' : 'Generate Free 45-60s Motion Video'}</>
                 )}
               </Button>
 
@@ -1131,7 +1199,11 @@ function VideoGenPanel() {
                 <div className="space-y-2">
                   <Progress value={isEncoding ? encodingPercent : 50} className="h-2 animate-pulse" />
                   <p className="text-xs text-zinc-500 text-center">
-                    {isEncoding ? `Encoding ${videoSettings.duration}s motion video in your browser...` : 'Generating free source image... 10-30 seconds'}
+                    {isEncoding
+                      ? `Encoding ${videoSettings.duration}s motion video in your browser...`
+                      : videoSettings.generationMode === 'real'
+                        ? 'Generating real AI motion... this can take a few minutes'
+                        : 'Generating free source image... 10-30 seconds'}
                   </p>
                 </div>
               )}
@@ -1144,7 +1216,13 @@ function VideoGenPanel() {
             <CardHeader>
               <CardTitle className="text-zinc-300 text-sm flex items-center gap-2">
                 <Video className="w-4 h-4" /> Video Preview
-                <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">{videoSettings.motionEffect}</Badge>
+                <Badge className={`text-[9px] border-0 ml-auto ${
+                  videoSettings.generationMode === 'real'
+                    ? 'bg-violet-600/20 text-violet-300'
+                    : 'bg-amber-600/20 text-amber-300'
+                }`}>
+                  {videoSettings.generationMode === 'real' ? 'Real AI Clip' : videoSettings.motionEffect}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1186,9 +1264,11 @@ function VideoGenPanel() {
                 ) : videoProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
-                    <p className="text-sm">{videoProgress.message || 'Generating free motion video...'}</p>
+                    <p className="text-sm">{videoProgress.message || 'Generating video...'}</p>
                     <p className="text-xs mt-1 text-zinc-600">
-                      Generating free source image... 10-30 seconds
+                      {videoSettings.generationMode === 'real'
+                        ? 'Real text-to-video is short and rate-limited on free no-key access.'
+                        : 'Generating free source image... 10-30 seconds'}
                     </p>
                   </div>
                 ) : (
@@ -1234,10 +1314,11 @@ function VideoGenPanel() {
                 <Star className="w-4 h-4 text-amber-400" /> Video Tips
               </h3>
               <div className="space-y-2 text-xs text-zinc-500">
-                <p><strong className="text-amber-300">No API keys</strong> — The video flow is fully free and no-key.</p>
-                <p><strong className="text-sky-300">45-60 seconds</strong> — Use longer durations for Reels, Shorts, and TikTok drafts.</p>
+                <p><strong className="text-violet-300">Real AI Clip</strong> — Use this for prompts like &quot;dog dancing&quot;; it creates actual generated motion.</p>
+                <p><strong className="text-amber-300">Long Motion</strong> — Use this for 45-60s clips, but it animates a still image.</p>
                 <p><strong className="text-emerald-300">Source image model</strong> — Try GPT Image or SeeDream if the first image is not accurate enough.</p>
                 <p><strong className="text-orange-300">Motion effect</strong> — Ken Burns and Drift usually look best for long clips.</p>
+                <p><strong className="text-sky-300">No API keys</strong> — Real AI clips are free/no-key but may fail when the free service is rate-limited.</p>
                 <p><strong className="text-amber-300">Be descriptive</strong> — Describe motion and camera movement</p>
                 <p><strong className="text-violet-300">Use &quot;Cinematic&quot; style</strong> — For best video results</p>
                 <p><strong className="text-pink-300">For Reels/TikTok</strong> — Select the platform preset first</p>

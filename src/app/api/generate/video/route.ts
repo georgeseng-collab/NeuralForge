@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateMotionVideoSource } from '@/lib/ai';
+import { generateFreeRealVideo, generateMotionVideoSource } from '@/lib/ai';
 
 export const maxDuration = 300; // 5 minutes for video generation
 
@@ -50,9 +50,11 @@ export async function POST(request: NextRequest) {
       fps = 8,
       style = 'Cinematic',
       modelId = 'gptimage',
+      realVideoModelId = 'wan-fast',
       width = 1344,
       height = 768,
       negativePrompt = '',
+      generationMode = 'real',
       motionEffect = 'ken-burns',
     } = body;
 
@@ -63,7 +65,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Always use the free no-key path. The browser turns this source image into video.
+    if (generationMode === 'real') {
+      const result = await generateFreeRealVideo(
+        prompt,
+        style,
+        width,
+        height,
+        realVideoModelId,
+        duration,
+        undefined,
+        negativePrompt,
+      );
+
+      return NextResponse.json({
+        video_base64: result.videoBase64,
+        video_mime: result.mime,
+        is_real_generation: true,
+        mode: 'real',
+        provider: result.provider,
+        model_used: result.modelUsed,
+        duration: result.duration,
+        width: result.width,
+        height: result.height,
+        prompt,
+        note: 'Free no-key real AI video clip. Free availability is rate-limited and clips are short.',
+      });
+    }
+
+    // Long free no-key path. The browser turns this source image into video.
     return createFreeMotionResponse({
       prompt, style, width, height, modelId, negativePrompt, motionEffect, duration, fps,
     });
