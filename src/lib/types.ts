@@ -91,6 +91,25 @@ export interface ProductItem {
   deliveryInfo: string;
 }
 
+export type CharacterType = 'mascot' | 'founder-avatar' | 'virtual-influencer' | 'customer-persona' | 'product-character';
+
+export interface CharacterProfile {
+  id: string;
+  name: string;
+  type: CharacterType;
+  role: string;
+  personality: string;
+  visualDescription: string;
+  outfitStyle: string;
+  voiceTone: string;
+  catchphrases: string[];
+  contentThemes: string[];
+  doRules: string;
+  dontRules: string;
+  referenceImageUrl: string;
+  active: boolean;
+}
+
 export interface CampaignDraft {
   id: string;
   title: string;
@@ -103,6 +122,7 @@ export interface CampaignDraft {
   cta: string;
   hashtags: string[];
   productId?: string;
+  characterId?: string;
   createdAt: number;
 }
 

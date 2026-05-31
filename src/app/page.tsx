@@ -15,7 +15,7 @@ import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
   IMAGE_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
   MOTION_EFFECT_OPTIONS, MOTION_SOURCE_MODEL_OPTIONS, REAL_VIDEO_DURATION_OPTIONS, REAL_VIDEO_MODEL_OPTIONS,
-  type AiVideoProviderSettings, type AutoScheduleSettings, type BrandProfile, type CampaignDraft, type GalleryItem, type LeadRecord, type ProductItem, type SafetyLogEntry, type ScheduledPost,
+  type AiVideoProviderSettings, type AutoScheduleSettings, type BrandProfile, type CampaignDraft, type CharacterProfile, type GalleryItem, type LeadRecord, type ProductItem, type SafetyLogEntry, type ScheduledPost,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1519,11 +1519,12 @@ function VideoGenPanel() {
 }
 
 // ─── SG Growth Studio Panel ─────────────────────────────────────────────────
-type GrowthSection = 'account' | 'profile' | 'links' | 'products' | 'planner' | 'scheduler' | 'leads' | 'video-providers';
+type GrowthSection = 'account' | 'profile' | 'characters' | 'links' | 'products' | 'planner' | 'scheduler' | 'leads' | 'video-providers';
 
 const GROWTH_SECTIONS: { id: GrowthSection; label: string; icon: typeof Share2 }[] = [
   { id: 'account', label: 'Account', icon: Shield },
   { id: 'profile', label: 'Brand', icon: Settings },
+  { id: 'characters', label: 'Characters', icon: Star },
   { id: 'links', label: 'Links & OAuth', icon: Share2 },
   { id: 'products', label: 'Products', icon: Box },
   { id: 'planner', label: 'Planner', icon: Wand2 },
@@ -1537,6 +1538,7 @@ function buildSingaporeCaption(
   brand: BrandProfile,
   product?: ProductItem,
   primaryLink?: string,
+  character?: CharacterProfile,
 ): CampaignDraft {
   const productName = product?.name || 'your featured offer';
   const priceLine = product?.promoPrice
@@ -1545,12 +1547,15 @@ function buildSingaporeCaption(
   const zone = brand.singaporeZones[0] || 'Singapore';
   const cta = brand.primaryGoal === 'leads'
     ? `DM "INFO" or WhatsApp us to get details.`
-    : `Tap the link to order${primaryLink ? `: ${primaryLink}` : ' or message us to buy'}.`;
+    : `Tap the profile link${primaryLink ? `: ${primaryLink}` : ' or message us for details'}.`;
   const hook = brand.primaryGoal === 'leads'
     ? `Need more enquiries from ${zone}?`
-    : `Singapore deal alert for ${productName}!`;
+    : character
+      ? `${character.name} shares something worth watching in Singapore`
+      : `Singapore content idea for ${productName}!`;
   const caption = [
     hook,
+    character ? `${character.name}: ${character.catchphrases[0] || 'Good thing must share'}.` : '',
     `${productName} is for ${product?.targetBuyer || brand.targetAudience}.`,
     product?.benefits || brand.uniqueSellingPoint,
     priceLine,
@@ -1569,10 +1574,11 @@ function buildSingaporeCaption(
     goal: draft.goal,
     hook,
     caption,
-    prompt: `Create a ${draft.contentType} for ${brand.industry} in Singapore. Feature ${productName}. Style: ${brand.tone}. Audience: ${brand.targetAudience}. CTA: ${cta}`,
+    prompt: `Create a ${draft.contentType} for ${brand.industry} in Singapore. Feature ${productName}. ${character ? `Use recurring character ${character.name}: ${character.role}. Visual: ${character.visualDescription}. Personality: ${character.personality}. Outfit: ${character.outfitStyle}. Catchphrases: ${character.catchphrases.join(', ')}. Do: ${character.doRules}. Avoid: ${character.dontRules}.` : ''} Style: ${brand.tone}. Audience: ${brand.targetAudience}. CTA: ${cta}`,
     cta,
     hashtags,
     productId: product?.id,
+    characterId: character?.id,
     createdAt: Date.now(),
   };
 }
@@ -1603,6 +1609,12 @@ function GrowthStudioPanel() {
     addProduct,
     updateProduct,
     removeProduct,
+    characters,
+    addCharacter,
+    updateCharacter,
+    removeCharacter,
+    activeCharacterId,
+    setActiveCharacter,
     campaignDrafts,
     addCampaignDraft,
     removeCampaignDraft,
@@ -1628,6 +1640,20 @@ function GrowthStudioPanel() {
   const [draftType, setDraftType] = useState<CampaignDraft['contentType']>('image');
   const [draftGoal, setDraftGoal] = useState<CampaignDraft['goal']>(brandProfile.primaryGoal);
   const [selectedProductId, setSelectedProductId] = useState(products[0]?.id || '');
+  const [characterForm, setCharacterForm] = useState<Omit<CharacterProfile, 'id' | 'active'>>({
+    name: '',
+    type: 'virtual-influencer',
+    role: '',
+    personality: '',
+    visualDescription: '',
+    outfitStyle: '',
+    voiceTone: '',
+    catchphrases: [],
+    contentThemes: [],
+    doRules: '',
+    dontRules: '',
+    referenceImageUrl: '',
+  });
   const [productForm, setProductForm] = useState<Omit<ProductItem, 'id'>>({
     name: '',
     category: '',
@@ -1655,6 +1681,7 @@ function GrowthStudioPanel() {
   const primaryOrderLink = socialLinks.find((link) => ['shopee', 'lazada', 'tiktokShop', 'website', 'whatsapp'].includes(link.platform) && link.url)?.url || '';
   const connectedPublishingCount = socialLinks.filter((link) => ['instagram', 'facebook', 'tiktok'].includes(link.platform) && link.oauthStatus === 'connected').length;
   const selectedProduct = products.find((product) => product.id === selectedProductId) || products[0];
+  const activeCharacter = characters.find((character) => character.id === activeCharacterId) || characters[0];
 
   const generateDraft = () => {
     const draft = buildSingaporeCaption(
@@ -1662,6 +1689,7 @@ function GrowthStudioPanel() {
       brandProfile,
       selectedProduct,
       selectedProduct?.orderLink || primaryOrderLink,
+      activeCharacter,
     );
     addCampaignDraft(draft);
     toast.success('Singapore campaign draft generated');
@@ -1688,6 +1716,37 @@ function GrowthStudioPanel() {
       deliveryInfo: 'Islandwide delivery available.',
     });
     toast.success('Product added');
+  };
+
+  const addCharacterFromForm = () => {
+    if (!characterForm.name.trim()) {
+      toast.error('Character name is required');
+      return;
+    }
+    const character: CharacterProfile = {
+      id: crypto.randomUUID(),
+      active: false,
+      ...characterForm,
+      catchphrases: characterForm.catchphrases.filter(Boolean),
+      contentThemes: characterForm.contentThemes.filter(Boolean),
+    };
+    addCharacter(character);
+    setActiveCharacter(character.id);
+    setCharacterForm({
+      name: '',
+      type: 'virtual-influencer',
+      role: '',
+      personality: '',
+      visualDescription: '',
+      outfitStyle: '',
+      voiceTone: '',
+      catchphrases: [],
+      contentThemes: [],
+      doRules: '',
+      dontRules: '',
+      referenceImageUrl: '',
+    });
+    toast.success('Character created and activated');
   };
 
   const scheduleDraft = (draft: CampaignDraft) => {
@@ -1853,7 +1912,7 @@ function GrowthStudioPanel() {
         order: index + 1,
         duration: sceneLength,
         title,
-        prompt: `${title} scene for ${brandProfile.businessName}: ${brandProfile.offer}. Singapore ecommerce/social ad, clear subject motion, vertical social video, compelling ${brandProfile.primaryGoal} CTA.`,
+        prompt: `${title} scene for ${brandProfile.businessName}: ${brandProfile.offer}. Organic Singapore social content, not a hard-sell ad. ${activeCharacter ? `Feature recurring character ${activeCharacter.name}: ${activeCharacter.visualDescription}, ${activeCharacter.personality}, ${activeCharacter.outfitStyle}.` : ''} Clear subject motion, vertical social video, compelling ${brandProfile.primaryGoal} CTA to profile link or DM.`,
         status: 'planned' as const,
       };
     });
@@ -1947,7 +2006,7 @@ function GrowthStudioPanel() {
         </div>
         <div>
           <h2 className="text-2xl font-bold">SG Growth Studio</h2>
-          <p className="text-sm text-zinc-500">Singapore content planner, social links, scheduling, leads and ecommerce foundation</p>
+          <p className="text-sm text-zinc-500">Singapore organic content planner, recurring characters, links, scheduling and leads</p>
         </div>
         <Badge className="ml-auto bg-emerald-600/20 text-emerald-300 border-0">
           {connectedPublishingCount} OAuth connected
@@ -2075,7 +2134,7 @@ function GrowthStudioPanel() {
                   <Select value={brandProfile.primaryGoal} onValueChange={(value: BrandProfile['primaryGoal']) => updateBrandProfile({ primaryGoal: value })}>
                     <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-zinc-800 border-zinc-700">
-                      {['leads', 'ecommerce', 'awareness', 'engagement'].map((goal) => <SelectItem key={goal} value={goal}>{goal}</SelectItem>)}
+                      {['leads', 'awareness', 'engagement', 'ecommerce'].map((goal) => <SelectItem key={goal} value={goal}>{goal}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -2102,6 +2161,68 @@ function GrowthStudioPanel() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {section === 'characters' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Create Recurring Character</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input value={characterForm.name} onChange={(e) => setCharacterForm({ ...characterForm, name: e.target.value })} placeholder="Character name" className="bg-zinc-800/50 border-zinc-700" />
+                <Select value={characterForm.type} onValueChange={(value: CharacterProfile['type']) => setCharacterForm({ ...characterForm, type: value })}>
+                  <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-zinc-800 border-zinc-700">
+                    {['mascot', 'founder-avatar', 'virtual-influencer', 'customer-persona', 'product-character'].map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Textarea value={characterForm.role} onChange={(e) => setCharacterForm({ ...characterForm, role: e.target.value })} placeholder="Role in content, e.g. SG deal hunter / founder / customer persona" className="bg-zinc-800/50 border-zinc-700 min-h-[70px]" />
+              <Textarea value={characterForm.personality} onChange={(e) => setCharacterForm({ ...characterForm, personality: e.target.value })} placeholder="Personality" className="bg-zinc-800/50 border-zinc-700 min-h-[70px]" />
+              <Textarea value={characterForm.visualDescription} onChange={(e) => setCharacterForm({ ...characterForm, visualDescription: e.target.value })} placeholder="Visual description for image/Kling prompts" className="bg-zinc-800/50 border-zinc-700 min-h-[80px]" />
+              <div className="grid grid-cols-2 gap-3">
+                <Input value={characterForm.outfitStyle} onChange={(e) => setCharacterForm({ ...characterForm, outfitStyle: e.target.value })} placeholder="Outfit/style" className="bg-zinc-800/50 border-zinc-700" />
+                <Input value={characterForm.voiceTone} onChange={(e) => setCharacterForm({ ...characterForm, voiceTone: e.target.value })} placeholder="Voice/tone" className="bg-zinc-800/50 border-zinc-700" />
+              </div>
+              <Input value={characterForm.catchphrases.join(', ')} onChange={(e) => setCharacterForm({ ...characterForm, catchphrases: e.target.value.split(',').map((item) => item.trim()) })} placeholder="Catchphrases, comma separated" className="bg-zinc-800/50 border-zinc-700" />
+              <Input value={characterForm.contentThemes.join(', ')} onChange={(e) => setCharacterForm({ ...characterForm, contentThemes: e.target.value.split(',').map((item) => item.trim()) })} placeholder="Content themes, comma separated" className="bg-zinc-800/50 border-zinc-700" />
+              <Input value={characterForm.referenceImageUrl} onChange={(e) => setCharacterForm({ ...characterForm, referenceImageUrl: e.target.value })} placeholder="Reference image URL (optional)" className="bg-zinc-800/50 border-zinc-700" />
+              <Textarea value={characterForm.doRules} onChange={(e) => setCharacterForm({ ...characterForm, doRules: e.target.value })} placeholder="Do rules" className="bg-zinc-800/50 border-zinc-700 min-h-[60px]" />
+              <Textarea value={characterForm.dontRules} onChange={(e) => setCharacterForm({ ...characterForm, dontRules: e.target.value })} placeholder="Don't rules / brand safety" className="bg-zinc-800/50 border-zinc-700 min-h-[60px]" />
+              <Button onClick={addCharacterFromForm} className="w-full bg-violet-600 hover:bg-violet-500"><Star className="w-4 h-4 mr-2" /> Create Character</Button>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-3">
+            {characters.map((character) => (
+              <Card key={character.id} className={`bg-zinc-900/50 border ${character.id === activeCharacterId ? 'border-violet-500/60' : 'border-zinc-800'}`}>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Star className="w-5 h-5 text-violet-400 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Input value={character.name} onChange={(e) => updateCharacter(character.id, { name: e.target.value })} className="bg-transparent border-0 p-0 h-auto text-zinc-100 font-semibold" />
+                        <Badge className="bg-violet-600/20 text-violet-300 border-0">{character.type}</Badge>
+                        {character.id === activeCharacterId && <Badge className="bg-emerald-600/20 text-emerald-300 border-0">active</Badge>}
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-1">{character.role}</p>
+                    </div>
+                    <Button size="sm" variant="outline" className="border-zinc-700" onClick={() => setActiveCharacter(character.id)}>Use</Button>
+                    <Button variant="ghost" size="sm" onClick={() => removeCharacter(character.id)}><Trash2 className="w-4 h-4 text-red-400" /></Button>
+                  </div>
+                  <Textarea value={character.visualDescription} onChange={(e) => updateCharacter(character.id, { visualDescription: e.target.value })} className="bg-zinc-800/50 border-zinc-700 min-h-[70px] text-xs" />
+                  <div className="flex flex-wrap gap-1">
+                    {character.catchphrases.map((phrase) => (
+                      <Badge key={phrase} className="text-[9px] bg-zinc-800 text-zinc-300 border-0">{phrase}</Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -2136,7 +2257,7 @@ function GrowthStudioPanel() {
       {section === 'products' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="bg-zinc-900/50 border-zinc-800">
-            <CardHeader><CardTitle className="text-sm text-zinc-300">Add Product / Offer</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Add Offer / Link Topic</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <Input value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} placeholder="Product name" className="bg-zinc-800/50 border-zinc-700" />
@@ -2185,7 +2306,7 @@ function GrowthStudioPanel() {
                 </Select>
                 <Select value={draftGoal} onValueChange={(value: CampaignDraft['goal']) => setDraftGoal(value)}>
                   <SelectTrigger className="bg-zinc-800/50 border-zinc-700"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-zinc-800 border-zinc-700">{['leads', 'ecommerce', 'awareness', 'engagement'].map((goal) => <SelectItem key={goal} value={goal}>{goal}</SelectItem>)}</SelectContent>
+                  <SelectContent className="bg-zinc-800 border-zinc-700">{['leads', 'awareness', 'engagement', 'ecommerce'].map((goal) => <SelectItem key={goal} value={goal}>{goal}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <Select value={selectedProductId} onValueChange={setSelectedProductId}>

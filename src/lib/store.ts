@@ -12,6 +12,7 @@ import {
   type BrandProfile,
   type SocialLink,
   type ProductItem,
+  type CharacterProfile,
   type CampaignDraft,
   type ScheduledPost,
   type AutoScheduleSettings,
@@ -54,6 +55,12 @@ interface NeuralForgeStore {
   addProduct: (product: ProductItem) => void;
   updateProduct: (id: string, updates: Partial<ProductItem>) => void;
   removeProduct: (id: string) => void;
+  characters: CharacterProfile[];
+  addCharacter: (character: CharacterProfile) => void;
+  updateCharacter: (id: string, updates: Partial<CharacterProfile>) => void;
+  removeCharacter: (id: string) => void;
+  activeCharacterId: string;
+  setActiveCharacter: (id: string) => void;
   campaignDrafts: CampaignDraft[];
   addCampaignDraft: (draft: CampaignDraft) => void;
   removeCampaignDraft: (id: string) => void;
@@ -169,15 +176,15 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
 
   // SG Growth Studio
   brandProfile: {
-    businessName: 'NeuralForge SG Store',
-    industry: 'Ecommerce reselling',
-    targetAudience: 'Singapore shoppers aged 25-40 looking for value-for-money deals',
-    offer: 'Affordable trending products with islandwide delivery',
-    uniqueSellingPoint: 'Singapore-localized product recommendations, fast replies, and easy WhatsApp ordering',
+    businessName: 'NeuralForge SG Creator',
+    industry: 'Organic content and social growth',
+    targetAudience: 'Singapore viewers who enjoy useful, entertaining and relatable local content',
+    offer: 'Daily organic posts that bring viewers to my profile link or DM',
+    uniqueSellingPoint: 'Singapore-localized recurring characters, regular posting, and link-driven organic growth',
     tone: 'friendly',
     language: 'singlish-light',
     singaporeZones: ['Tampines', 'Jurong', 'Woodlands', 'CBD'],
-    primaryGoal: 'ecommerce',
+    primaryGoal: 'awareness',
     whatsappNumber: '',
     pdpaConsentPurpose: 'To respond to enquiries, process orders, and send opted-in marketing updates.',
   },
@@ -221,6 +228,56 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
     })),
   removeProduct: (id) =>
     set((state) => ({ products: state.products.filter((product) => product.id !== id) })),
+  characters: [
+    {
+      id: 'aunty-deal-hunter',
+      name: 'Aunty Deal Hunter',
+      type: 'virtual-influencer',
+      role: 'Singapore organic content host who finds useful things and explains why people should care',
+      personality: 'Funny, direct, warm, slightly kaypoh, Singlish-light but still brand-safe',
+      visualDescription: 'Friendly Singaporean aunty, expressive face, approachable smile, social-media host energy',
+      outfitStyle: 'Casual heartland outfit with neat styling and bright accent colors',
+      voiceTone: 'Conversational, practical, funny, trustworthy',
+      catchphrases: ['Good thing must share', 'Don’t say bojio', 'This one actually useful'],
+      contentThemes: ['daily useful finds', 'Singapore lifestyle tips', 'problem-solution stories', 'link-in-bio CTA'],
+      doRules: 'Keep it friendly, useful, local, and organic. Make the character recurring and memorable.',
+      dontRules: 'Avoid hard-selling, offensive stereotypes, exaggerated income claims, or misleading urgency.',
+      referenceImageUrl: '',
+      active: true,
+    },
+    {
+      id: 'sg-founder-avatar',
+      name: 'SG Founder Avatar',
+      type: 'founder-avatar',
+      role: 'Founder-style persona that builds trust and explains the story behind each post',
+      personality: 'Sincere, hardworking, knowledgeable, relatable',
+      visualDescription: 'Modern Singapore small business owner, confident but approachable, clean social video look',
+      outfitStyle: 'Smart casual, neutral colors, clean background',
+      voiceTone: 'Helpful, honest, concise',
+      catchphrases: ['Here’s what I learned', 'Let me show you', 'This is why it matters'],
+      contentThemes: ['behind the scenes', 'founder story', 'educational tips', 'trust building'],
+      doRules: 'Make the founder feel real, helpful, and consistent.',
+      dontRules: 'Avoid fake guarantees, over-polished corporate tone, or unrealistic testimonials.',
+      referenceImageUrl: '',
+      active: false,
+    },
+  ],
+  addCharacter: (character) => set((state) => ({ characters: [character, ...state.characters] })),
+  updateCharacter: (id, updates) =>
+    set((state) => ({
+      characters: state.characters.map((character) => character.id === id ? { ...character, ...updates } : character),
+    })),
+  removeCharacter: (id) =>
+    set((state) => ({
+      characters: state.characters.filter((character) => character.id !== id),
+      activeCharacterId: state.activeCharacterId === id ? state.characters.find((character) => character.id !== id)?.id || '' : state.activeCharacterId,
+    })),
+  activeCharacterId: 'aunty-deal-hunter',
+  setActiveCharacter: (id) =>
+    set((state) => ({
+      activeCharacterId: id,
+      characters: state.characters.map((character) => ({ ...character, active: character.id === id })),
+    })),
   campaignDrafts: [],
   addCampaignDraft: (draft) => set((state) => ({ campaignDrafts: [draft, ...state.campaignDrafts] })),
   removeCampaignDraft: (id) =>
@@ -275,7 +332,7 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
         order: 3,
         duration: 10,
         title: 'Product',
-        prompt: 'Introduce the product or offer with smooth motion and clear ecommerce framing.',
+        prompt: 'Introduce the offer or link topic with smooth motion and organic social framing.',
         status: 'planned',
       },
       {
