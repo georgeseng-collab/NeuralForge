@@ -49,13 +49,16 @@ interface NeuralForgeStore {
   // SG Growth Studio
   brandProfile: BrandProfile;
   updateBrandProfile: (settings: Partial<BrandProfile>) => void;
+  setBrandProfile: (profile: BrandProfile) => void;
   socialLinks: SocialLink[];
+  setSocialLinks: (links: SocialLink[]) => void;
   updateSocialLink: (platform: SocialLink['platform'], updates: Partial<SocialLink>) => void;
   products: ProductItem[];
   addProduct: (product: ProductItem) => void;
   updateProduct: (id: string, updates: Partial<ProductItem>) => void;
   removeProduct: (id: string) => void;
   characters: CharacterProfile[];
+  setCharacters: (characters: CharacterProfile[]) => void;
   addCharacter: (character: CharacterProfile) => void;
   updateCharacter: (id: string, updates: Partial<CharacterProfile>) => void;
   removeCharacter: (id: string) => void;
@@ -190,6 +193,7 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   },
   updateBrandProfile: (settings) =>
     set((state) => ({ brandProfile: { ...state.brandProfile, ...settings } })),
+  setBrandProfile: (profile) => set({ brandProfile: profile }),
   socialLinks: [
     { platform: 'instagram', label: 'Instagram', url: '', connected: false, oauthStatus: 'not-connected' },
     { platform: 'facebook', label: 'Facebook Page', url: '', connected: false, oauthStatus: 'not-connected' },
@@ -207,6 +211,7 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
         link.platform === platform ? { ...link, ...updates } : link
       ),
     })),
+  setSocialLinks: (links) => set({ socialLinks: links }),
   products: [
     {
       id: 'starter-product',
@@ -262,6 +267,10 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
       active: false,
     },
   ],
+  setCharacters: (characters) => set({
+    characters,
+    activeCharacterId: characters.find((character) => character.active)?.id || characters[0]?.id || '',
+  }),
   addCharacter: (character) => set((state) => ({ characters: [character, ...state.characters] })),
   updateCharacter: (id, updates) =>
     set((state) => ({

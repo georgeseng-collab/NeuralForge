@@ -1604,13 +1604,16 @@ function GrowthStudioPanel() {
   const {
     brandProfile,
     updateBrandProfile,
+    setBrandProfile,
     socialLinks,
+    setSocialLinks,
     updateSocialLink,
     products,
     addProduct,
     updateProduct,
     removeProduct,
     characters,
+    setCharacters,
     addCharacter,
     updateCharacter,
     removeCharacter,
@@ -1780,6 +1783,59 @@ function GrowthStudioPanel() {
       email: '',
     });
     toast.success('Signed out');
+  };
+
+  const getSupabaseAccessToken = async () => {
+    const supabase = createBrowserSupabaseClient();
+    if (!supabase) throw new Error('Supabase client env vars are not configured.');
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    const token = data.session?.access_token;
+    if (!token) throw new Error('Please sign in with Supabase first.');
+    return token;
+  };
+
+  const loadWorkspaceData = async () => {
+    try {
+      if (!workspaceSession.workspaceId) throw new Error('Workspace ID missing. Sign in first.');
+      const token = await getSupabaseAccessToken();
+      const res = await fetch(`/api/workspace/data?workspaceId=${encodeURIComponent(workspaceSession.workspaceId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to load workspace data');
+      if (data.brandProfile) setBrandProfile(data.brandProfile);
+      if (Array.isArray(data.socialLinks) && data.socialLinks.length) setSocialLinks(data.socialLinks);
+      if (Array.isArray(data.characters) && data.characters.length) setCharacters(data.characters);
+      toast.success('Workspace data loaded from Supabase');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to load workspace data');
+    }
+  };
+
+  const saveWorkspaceData = async () => {
+    try {
+      if (!workspaceSession.workspaceId) throw new Error('Workspace ID missing. Sign in first.');
+      const token = await getSupabaseAccessToken();
+      const res = await fetch('/api/workspace/data', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          workspaceId: workspaceSession.workspaceId,
+          brandProfile,
+          socialLinks,
+          characters,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to save workspace data');
+      toast.success('Brand, links and characters saved to Supabase');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save workspace data');
+    }
   };
 
   const primaryOrderLink = socialLinks.find((link) => ['shopee', 'lazada', 'tiktokShop', 'website', 'whatsapp'].includes(link.platform) && link.url)?.url || '';
@@ -2215,6 +2271,14 @@ function GrowthStudioPanel() {
                   <div className="rounded-lg border border-emerald-600/30 bg-emerald-600/10 p-3 text-xs text-emerald-200">
                     Signed in as {workspaceSession.email || 'Supabase user'}.
                     {workspaceSession.workspaceId && <span className="block mt-1 text-emerald-300">Workspace ID: {workspaceSession.workspaceId}</span>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={loadWorkspaceData} variant="outline" className="border-zinc-700" disabled={authLoading}>
+                      Load Workspace Data
+                    </Button>
+                    <Button onClick={saveWorkspaceData} className="bg-emerald-600 hover:bg-emerald-500" disabled={authLoading}>
+                      Save Workspace Data
+                    </Button>
                   </div>
                   <Button onClick={handleSupabaseSignOut} className="w-full bg-zinc-700 hover:bg-zinc-600" disabled={authLoading}>
                     Sign Out
