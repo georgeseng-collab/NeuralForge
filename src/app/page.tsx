@@ -15,7 +15,7 @@ import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
   IMAGE_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
   MOTION_EFFECT_OPTIONS, MOTION_SOURCE_MODEL_OPTIONS, REAL_VIDEO_DURATION_OPTIONS, REAL_VIDEO_MODEL_OPTIONS,
-  type AiVideoProviderSettings, type BrandProfile, type CampaignDraft, type GalleryItem, type LeadRecord, type ProductItem, type SafetyLogEntry, type ScheduledPost,
+  type AiVideoProviderSettings, type AutoScheduleSettings, type BrandProfile, type CampaignDraft, type GalleryItem, type LeadRecord, type ProductItem, type SafetyLogEntry, type ScheduledPost,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1577,6 +1577,22 @@ function buildSingaporeCaption(
   };
 }
 
+function toDateTimeLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function normalizePreferredTimes(times: string[]): string[] {
+  const valid = times
+    .map((time) => time.trim())
+    .filter((time) => /^\d{2}:\d{2}$/.test(time));
+  return valid.length ? valid : ['12:30', '20:00'];
+}
+
 function GrowthStudioPanel() {
   const {
     brandProfile,
@@ -1593,6 +1609,8 @@ function GrowthStudioPanel() {
     scheduledPosts,
     addScheduledPost,
     updateScheduledPost,
+    autoScheduleSettings,
+    updateAutoScheduleSettings,
     aiVideoProviderSettings,
     updateAiVideoProviderSettings,
     workspaceSession,
@@ -1691,6 +1709,75 @@ function GrowthStudioPanel() {
     };
     addScheduledPost(post);
     toast.success('Draft added to scheduler');
+    setSection('scheduler');
+  };
+
+  const toggleAutoPlatform = (platform: AutoScheduleSettings['activePlatforms'][number]) => {
+    const active = autoScheduleSettings.activePlatforms.includes(platform);
+    const nextPlatforms = active
+      ? autoScheduleSettings.activePlatforms.filter((item) => item !== platform)
+      : [...autoScheduleSettings.activePlatforms, platform];
+    updateAutoScheduleSettings({ activePlatforms: nextPlatforms.length ? nextPlatforms : [platform] });
+  };
+
+  const generateAutoQueue = () => {
+    const platforms = autoScheduleSettings.activePlatforms.length
+      ? autoScheduleSettings.activePlatforms
+      : ['tiktok', 'instagram', 'facebook'] as AutoScheduleSettings['activePlatforms'];
+    const times = normalizePreferredTimes(autoScheduleSettings.preferredTimes);
+    const videoDrafts = campaignDrafts.filter((draft) => draft.contentType === 'video');
+    const imageDrafts = campaignDrafts.filter((draft) => draft.contentType === 'image' || draft.contentType === 'carousel');
+    const postsToAdd: ScheduledPost[] = [];
+
+    if (autoScheduleSettings.videosPerDay > 0 && videoDrafts.length === 0) {
+      toast.error('Create at least one video campaign draft before auto-scheduling videos.');
+      return;
+    }
+    if (autoScheduleSettings.imagesPerDay > 0 && imageDrafts.length === 0) {
+      toast.error('Create at least one image/carousel campaign draft before auto-scheduling images.');
+      return;
+    }
+
+    let platformCursor = 0;
+    let timeCursor = 0;
+    const createPost = (draft: CampaignDraft, dayOffset: number, slotIndex: number) => {
+      const platform = autoScheduleSettings.rotatePlatforms
+        ? platforms[platformCursor++ % platforms.length]
+        : draft.platform;
+      const [hours, minutes] = times[timeCursor++ % times.length].split(':').map(Number);
+      const scheduledAt = new Date();
+      scheduledAt.setDate(scheduledAt.getDate() + dayOffset);
+      scheduledAt.setHours(hours, minutes + slotIndex * 3, 0, 0);
+      const platformLink = socialLinks.find((link) => link.platform === platform);
+      const oauthReady = platformLink?.oauthStatus === 'connected';
+
+      postsToAdd.push({
+        id: crypto.randomUUID(),
+        draftId: draft.id,
+        platform,
+        caption: `${draft.caption}\n\n${draft.hashtags.join(' ')}`,
+        assetType: draft.contentType,
+        scheduledFor: toDateTimeLocal(scheduledAt),
+        status: oauthReady && !autoScheduleSettings.requireApprovalBeforePublish ? 'scheduled' : 'needs-oauth',
+        notes: oauthReady
+          ? autoScheduleSettings.requireApprovalBeforePublish
+            ? 'Auto-planned. Review/approve before publisher worker sends it.'
+            : 'Auto-planned and ready for publisher worker.'
+          : 'Auto-planned. Connect OAuth before automatic publishing; manual CTA links remain usable.',
+      });
+    };
+
+    for (let day = 1; day <= autoScheduleSettings.daysToPlan; day++) {
+      for (let i = 0; i < autoScheduleSettings.videosPerDay; i++) {
+        createPost(videoDrafts[(day + i - 1) % videoDrafts.length], day, i);
+      }
+      for (let i = 0; i < autoScheduleSettings.imagesPerDay; i++) {
+        createPost(imageDrafts[(day + i - 1) % imageDrafts.length], day, autoScheduleSettings.videosPerDay + i);
+      }
+    }
+
+    postsToAdd.reverse().forEach(addScheduledPost);
+    toast.success(`Auto-scheduled ${postsToAdd.length} posts across ${platforms.length} platform(s)`);
     setSection('scheduler');
   };
 
@@ -2135,6 +2222,79 @@ function GrowthStudioPanel() {
 
       {section === 'scheduler' && (
         <div className="space-y-3">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader><CardTitle className="text-sm text-zinc-300">Auto Posting Rules</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="space-y-2">
+                  <Label>Videos / day</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={autoScheduleSettings.videosPerDay}
+                    onChange={(e) => updateAutoScheduleSettings({ videosPerDay: Math.max(0, Number(e.target.value || 0)) })}
+                    className="bg-zinc-800/50 border-zinc-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Images / day</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={autoScheduleSettings.imagesPerDay}
+                    onChange={(e) => updateAutoScheduleSettings({ imagesPerDay: Math.max(0, Number(e.target.value || 0)) })}
+                    className="bg-zinc-800/50 border-zinc-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Days to plan</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={autoScheduleSettings.daysToPlan}
+                    onChange={(e) => updateAutoScheduleSettings({ daysToPlan: Math.min(30, Math.max(1, Number(e.target.value || 1))) })}
+                    className="bg-zinc-800/50 border-zinc-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Preferred times</Label>
+                  <Input
+                    value={autoScheduleSettings.preferredTimes.join(', ')}
+                    onChange={(e) => updateAutoScheduleSettings({ preferredTimes: e.target.value.split(',').map((time) => time.trim()).filter(Boolean) })}
+                    className="bg-zinc-800/50 border-zinc-700"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(['tiktok', 'instagram', 'facebook'] as AutoScheduleSettings['activePlatforms']).map((platform) => (
+                  <button
+                    key={platform}
+                    onClick={() => toggleAutoPlatform(platform)}
+                    className={`px-3 py-2 rounded-lg border text-xs capitalize ${
+                      autoScheduleSettings.activePlatforms.includes(platform)
+                        ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-200'
+                        : 'bg-zinc-800/40 border-zinc-700 text-zinc-500'
+                    }`}
+                  >
+                    {platform}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 items-center rounded-lg border border-zinc-800 p-3">
+                <div className="text-xs text-zinc-500">
+                  Example: 2 videos/day for 7 days across TikTok, Instagram, Facebook creates 14 scheduled video slots. Posts stay as <span className="text-amber-300">needs-oauth</span> until the platform account is connected and approved.
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="border-zinc-700" onClick={() => updateAutoScheduleSettings({ rotatePlatforms: !autoScheduleSettings.rotatePlatforms })}>
+                    {autoScheduleSettings.rotatePlatforms ? 'Rotating platforms' : 'Draft platform only'}
+                  </Button>
+                  <Button onClick={generateAutoQueue} className="bg-emerald-600 hover:bg-emerald-500"><Clock className="w-4 h-4 mr-2" /> Generate Auto Queue</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {scheduledPosts.length === 0 ? (
             <Card className="bg-zinc-900/50 border-zinc-800"><CardContent className="p-8 text-center text-zinc-500">No scheduled posts yet. Schedule a campaign draft first.</CardContent></Card>
           ) : scheduledPosts.map((post) => (

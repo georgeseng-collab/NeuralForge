@@ -14,6 +14,7 @@ import {
   type ProductItem,
   type CampaignDraft,
   type ScheduledPost,
+  type AutoScheduleSettings,
   type AiVideoProviderSettings,
   type WorkspaceSession,
   type LeadRecord,
@@ -59,6 +60,8 @@ interface NeuralForgeStore {
   scheduledPosts: ScheduledPost[];
   addScheduledPost: (post: ScheduledPost) => void;
   updateScheduledPost: (id: string, updates: Partial<ScheduledPost>) => void;
+  autoScheduleSettings: AutoScheduleSettings;
+  updateAutoScheduleSettings: (settings: Partial<AutoScheduleSettings>) => void;
   aiVideoProviderSettings: AiVideoProviderSettings;
   updateAiVideoProviderSettings: (settings: Partial<AiVideoProviderSettings>) => void;
   workspaceSession: WorkspaceSession;
@@ -228,6 +231,17 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
     set((state) => ({
       scheduledPosts: state.scheduledPosts.map((post) => post.id === id ? { ...post, ...updates } : post),
     })),
+  autoScheduleSettings: {
+    videosPerDay: 2,
+    imagesPerDay: 1,
+    daysToPlan: 7,
+    activePlatforms: ['tiktok', 'instagram', 'facebook'],
+    preferredTimes: ['12:30', '20:00', '22:00'],
+    rotatePlatforms: true,
+    requireApprovalBeforePublish: true,
+  },
+  updateAutoScheduleSettings: (settings) =>
+    set((state) => ({ autoScheduleSettings: { ...state.autoScheduleSettings, ...settings } })),
   aiVideoProviderSettings: {
     preferredProvider: 'kling',
     budgetMode: 'standard',

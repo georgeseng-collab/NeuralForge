@@ -117,6 +117,16 @@ export interface ScheduledPost {
   notes: string;
 }
 
+export interface AutoScheduleSettings {
+  videosPerDay: number;
+  imagesPerDay: number;
+  daysToPlan: number;
+  activePlatforms: ('instagram' | 'facebook' | 'tiktok')[];
+  preferredTimes: string[];
+  rotatePlatforms: boolean;
+  requireApprovalBeforePublish: boolean;
+}
+
 export interface AiVideoProviderSettings {
   preferredProvider: 'kling' | 'replicate' | 'fal' | 'seedance';
   budgetMode: 'draft' | 'standard' | 'premium';
