@@ -195,12 +195,12 @@ export const MOTION_SOURCE_MODEL_OPTIONS = [
   { id: 'zimage', name: 'ZImage', description: 'Balanced quality and speed', speed: 'Fast', badge: 'Speed' },
 ] as const;
 
-// ─── Real text-to-video models that can be attempted without user API keys ───
+// ─── No-key action sequence styles for multi-keyframe video clips ───────────
 export const REAL_VIDEO_MODEL_OPTIONS = [
-  { id: 'wan-fast', name: 'Wan Fast', description: 'Fast real motion; best first try for dancing/action prompts', speed: 'Fast', badge: 'Best', maxDuration: 5 },
-  { id: 'ltx-2', name: 'LTX Video', description: 'Quick real AI movement for short clips', speed: 'Fast', badge: 'Speed', maxDuration: 5 },
-  { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt following when available', speed: 'Medium', badge: 'Pro', maxDuration: 8 },
-  { id: 'p-video', name: 'Pruna Video', description: 'Alternative free real-video endpoint', speed: 'Medium', badge: 'Creative', maxDuration: 8 },
+  { id: 'wan-fast', name: 'Dance / Action', description: 'Best for dancing, jumping, and playful movement prompts', speed: 'Fast', badge: 'Best', maxDuration: 5 },
+  { id: 'ltx-2', name: 'Fast Movement', description: 'Quick pose changes for energetic actions', speed: 'Fast', badge: 'Speed', maxDuration: 5 },
+  { id: 'seedance-pro', name: 'Cinematic Movement', description: 'More cinematic keyframe progression', speed: 'Medium', badge: 'Pro', maxDuration: 8 },
+  { id: 'p-video', name: 'Playful Movement', description: 'Alternative style for expressive action sequences', speed: 'Medium', badge: 'Creative', maxDuration: 8 },
 ] as const;
 
 export const DEFAULT_MODELS: AIModel[] = [

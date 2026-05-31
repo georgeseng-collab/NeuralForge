@@ -293,6 +293,131 @@ async function encodeMotionToVideo(
   });
 }
 
+async function encodeImageSequenceToVideo(
+  imageSources: string[],
+  width: number,
+  height: number,
+  duration: number,
+  fps: number = 12,
+  onProgress?: (frame: number, totalFrames: number) => void,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      if (typeof MediaRecorder === 'undefined') {
+        reject(new Error('Your browser does not support MediaRecorder video encoding. Try Chrome, Edge, or Firefox.'));
+        return;
+      }
+      if (!imageSources.length) {
+        reject(new Error('No action frames were generated.'));
+        return;
+      }
+
+      const maxDim = 1024;
+      let cw = width;
+      let ch = height;
+      if (Math.max(cw, ch) > maxDim) {
+        const scale = maxDim / Math.max(cw, ch);
+        cw = Math.round(cw * scale);
+        ch = Math.round(ch * scale);
+      }
+      cw = cw % 2 === 0 ? cw : cw + 1;
+      ch = ch % 2 === 0 ? ch : ch + 1;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d')!;
+      const stream = canvas.captureStream(fps);
+      const chunks: Blob[] = [];
+
+      let mimeType = 'video/webm;codecs=vp9';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+      }
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 5000000,
+      });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      recorder.onerror = () => reject(new Error('Action sequence video encoding failed.'));
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        if (!blob.size) {
+          reject(new Error('Action sequence encoding produced an empty file.'));
+          return;
+        }
+        resolve(URL.createObjectURL(blob));
+      };
+
+      const imageElements: HTMLImageElement[] = [];
+      let loaded = 0;
+
+      const startEncoding = () => {
+        recorder.start();
+        const totalFrames = Math.max(1, duration * fps);
+        let frame = 0;
+        onProgress?.(0, totalFrames);
+
+        const renderFrame = () => {
+          if (frame >= totalFrames) {
+            onProgress?.(totalFrames, totalFrames);
+            recorder.stop();
+            return;
+          }
+
+          const progress = frame / totalFrames;
+          const sequencePosition = progress * (imageElements.length - 1);
+          const currentIndex = Math.min(imageElements.length - 1, Math.floor(sequencePosition));
+          const nextIndex = Math.min(imageElements.length - 1, currentIndex + 1);
+          const blend = sequencePosition - currentIndex;
+          const scale = 1.04 + Math.sin(progress * Math.PI) * 0.04;
+          const dw = cw * scale;
+          const dh = ch * scale;
+          const dx = (cw - dw) / 2;
+          const dy = (ch - dh) / 2;
+
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.drawImage(imageElements[currentIndex], dx, dy, dw, dh);
+          if (nextIndex !== currentIndex) {
+            ctx.globalAlpha = blend;
+            ctx.drawImage(imageElements[nextIndex], dx, dy, dw, dh);
+          }
+          ctx.globalAlpha = 1;
+
+          frame++;
+          if (frame === 1 || frame % Math.max(1, Math.floor(fps)) === 0) {
+            onProgress?.(frame, totalFrames);
+          }
+          setTimeout(renderFrame, 1000 / fps);
+        };
+
+        renderFrame();
+      };
+
+      imageSources.forEach((src) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          loaded++;
+          if (loaded === imageSources.length) startEncoding();
+        };
+        img.onerror = () => reject(new Error('Failed to load one of the generated action frames.'));
+        if (!src.startsWith('data:') && !src.startsWith('blob:')) img.crossOrigin = 'anonymous';
+        img.src = src;
+        imageElements.push(img);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 // ─── Image Loader Component ─────────────────────────────────────────────────
 function ImageWithLoader({ src }: { src: string }) {
   const [loading, setLoading] = useState(!src.startsWith('data:'));
@@ -730,6 +855,7 @@ function VideoGenPanel() {
   const [encodingPercent, setEncodingPercent] = useState(0);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [sourceImageMode, setSourceImageMode] = useState<'motion' | 'sequence' | null>(null);
   const [pendingVideoMeta, setPendingVideoMeta] = useState<{
     prompt: string;
     negativePrompt?: string;
@@ -747,9 +873,8 @@ function VideoGenPanel() {
   }, [videoBlobUrl]);
 
   // Auto-start motion encoding when a free motion source image is received.
-  // This also handles automatic fallback from paid/credit providers.
   useEffect(() => {
-    if (!sourceImage) return;
+    if (!sourceImage || sourceImageMode !== 'motion') return;
     let cancelled = false;
     setIsEncoding(true);
     setEncodingPercent(0);
@@ -809,7 +934,7 @@ function VideoGenPanel() {
       }
     });
     return () => { cancelled = true; };
-  }, [sourceImage]);
+  }, [sourceImage, sourceImageMode]);
 
   const selectedPreset = VIDEO_PRESET_OPTIONS.find(p => p.id === videoSettings.socialPreset);
 
@@ -851,6 +976,7 @@ function VideoGenPanel() {
     if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
     setVideoBlobUrl(null);
     setSourceImage(null);
+    setSourceImageMode(null);
     setPendingVideoMeta(null);
     setEncodingPercent(0);
     setGeneratedVideoUrl(null);
@@ -858,7 +984,7 @@ function VideoGenPanel() {
 
     if (videoSettings.generationMode === 'real') {
       const realModel = REAL_VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.realVideoModelId) || REAL_VIDEO_MODEL_OPTIONS[0];
-      setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating real AI motion with ${realModel.name}...` });
+      setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating action keyframes with ${realModel.name}...` });
     } else {
       const motionModel = MOTION_SOURCE_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId) || MOTION_SOURCE_MODEL_OPTIONS[0];
       setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating free image with ${motionModel.name} for long motion video...` });
@@ -882,7 +1008,63 @@ function VideoGenPanel() {
 
       const responseIsMotion = data.mode === 'motion' || data.image_base64 || data.image_url;
 
-      if (responseIsMotion) {
+      if (data.mode === 'sequence' && Array.isArray(data.image_frames)) {
+        const frameUrls = data.image_frames
+          .map((frame: { image_base64?: string }) => frame.image_base64)
+          .filter(Boolean) as string[];
+        if (!frameUrls.length) throw new Error('Action sequence completed but returned no frames.');
+
+        setSourceImageMode('sequence');
+        setSourceImage(frameUrls[0]);
+        setIsEncoding(true);
+        setEncodingPercent(0);
+        const sequenceDuration = data.duration || videoSettings.duration;
+        setVideoProgress({
+          isGenerating: true,
+          currentFrame: 0,
+          totalFrames: sequenceDuration * videoSettings.fps,
+          message: `Encoding ${frameUrls.length} action keyframes into a video...`,
+        });
+
+        const url = await encodeImageSequenceToVideo(
+          frameUrls,
+          data.width || videoSettings.width,
+          data.height || videoSettings.height,
+          sequenceDuration,
+          videoSettings.fps,
+          (frame, total) => {
+            const percent = total > 0 ? Math.min(99, Math.round((frame / total) * 100)) : 0;
+            setEncodingPercent(percent);
+            setVideoProgress({
+              isGenerating: true,
+              currentFrame: frame,
+              totalFrames: total,
+              message: `Encoding action sequence ${percent}%...`,
+            });
+          },
+        );
+
+        setVideoBlobUrl(url);
+        setGeneratedVideoUrl(url);
+        setGeneratedVideo(url);
+        setIsEncoding(false);
+        setEncodingPercent(100);
+        setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
+        addGalleryItem({
+          id: crypto.randomUUID(),
+          type: 'video',
+          prompt: videoSettings.prompt,
+          settings: { ...videoSettings },
+          url,
+          thumbnailUrl: frameUrls[0],
+          timestamp: Date.now(),
+          isNsfw: data.is_nsfw || false,
+          modelUsed: data.model_used,
+          provider: data.provider,
+          videoUrl: url,
+        });
+        toast.success('Action sequence video generated!');
+      } else if (responseIsMotion) {
         // Motion mode/fallback: we get an image_base64, set as sourceImage which triggers encoding
         // Backend already includes data:image/...;base64, prefix from fetchImageAsBase64
         const imageUrl = data.image_base64 || data.image_url;
@@ -893,6 +1075,7 @@ function VideoGenPanel() {
           modelUsed: data.model_used,
           provider: data.provider,
         });
+        setSourceImageMode('motion');
         setSourceImage(imageUrl);
         toast.success(`Image generated! Encoding ${data.duration || videoSettings.duration}s free motion video...`);
       } else {
@@ -932,6 +1115,8 @@ function VideoGenPanel() {
         toast.success(`Real AI video generated with ${data.model_used || 'AI'}!`);
       }
     } catch (err: any) {
+      setIsEncoding(false);
+      setEncodingPercent(0);
       toast.error(err.message || 'Video generation failed.');
       setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
     } finally {
@@ -982,9 +1167,9 @@ function VideoGenPanel() {
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Video className="w-4 h-4 text-violet-400" />
-                    <span className="text-sm font-medium text-zinc-200">Real AI Clip</span>
+                    <span className="text-sm font-medium text-zinc-200">Action Sequence</span>
                   </div>
-                  <p className="text-[10px] text-zinc-500">Actual movement, short free clip</p>
+                  <p className="text-[10px] text-zinc-500">Multiple keyframes, no key</p>
                 </button>
                 <button
                   onClick={() => updateVideoSettings({ generationMode: 'motion', duration: Math.max(videoSettings.duration, 45) })}
@@ -1036,7 +1221,7 @@ function VideoGenPanel() {
             <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
               <CardContent className="p-4">
                 <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
-                  <Video className="w-4 h-4 text-violet-400" /> Real AI Video Model
+                  <Video className="w-4 h-4 text-violet-400" /> Action Sequence Style
                 </Label>
                 <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
                   {REAL_VIDEO_MODEL_OPTIONS.map((model) => (
@@ -1060,7 +1245,7 @@ function VideoGenPanel() {
                   ))}
                 </div>
                 <p className="text-[10px] text-zinc-500 mt-3">
-                  Free no-key real AI clips are rate-limited and short. If unavailable, retry later or use Long Motion.
+                  No-key action sequences generate several AI images in different poses, then encode them into a short clip.
                 </p>
               </CardContent>
             </Card>
@@ -1141,7 +1326,7 @@ function VideoGenPanel() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-zinc-300">
-                    Duration{videoSettings.generationMode === 'real' ? ` (real clip max ${maxSelectableDuration}s)` : ' (long motion 45-60s)'}
+                    Duration{videoSettings.generationMode === 'real' ? ` (action sequence max ${maxSelectableDuration}s)` : ' (long motion 45-60s)'}
                   </Label>
                   <Select value={selectedDurationValue} onValueChange={(v) => {
                     const val = Number(v);
@@ -1175,7 +1360,7 @@ function VideoGenPanel() {
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5" />
                 {videoSettings.generationMode === 'real'
-                  ? `${videoSettings.duration}s real AI clip at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · actual generated motion`
+                  ? `${videoSettings.duration}s action sequence at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · multiple generated poses`
                   : `${videoSettings.duration}s long motion video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · ${videoSettings.motionEffect}`}
               </div>
 
@@ -1191,7 +1376,7 @@ function VideoGenPanel() {
                 {videoProgress.isGenerating || isEncoding ? (
                   <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message || 'Encoding...'}</>
                 ) : (
-                  <><Film className="w-5 h-5 mr-2" /> {videoSettings.generationMode === 'real' ? 'Generate Real AI Clip' : 'Generate Free 45-60s Motion Video'}</>
+                  <><Film className="w-5 h-5 mr-2" /> {videoSettings.generationMode === 'real' ? 'Generate Action Sequence' : 'Generate Free 45-60s Motion Video'}</>
                 )}
               </Button>
 
@@ -1202,7 +1387,7 @@ function VideoGenPanel() {
                     {isEncoding
                       ? `Encoding ${videoSettings.duration}s motion video in your browser...`
                       : videoSettings.generationMode === 'real'
-                        ? 'Generating real AI motion... this can take a few minutes'
+                        ? 'Generating multiple action keyframes...'
                         : 'Generating free source image... 10-30 seconds'}
                   </p>
                 </div>
@@ -1221,7 +1406,7 @@ function VideoGenPanel() {
                     ? 'bg-violet-600/20 text-violet-300'
                     : 'bg-amber-600/20 text-amber-300'
                 }`}>
-                  {videoSettings.generationMode === 'real' ? 'Real AI Clip' : videoSettings.motionEffect}
+                  {videoSettings.generationMode === 'real' ? 'Action Sequence' : videoSettings.motionEffect}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -1267,7 +1452,7 @@ function VideoGenPanel() {
                     <p className="text-sm">{videoProgress.message || 'Generating video...'}</p>
                     <p className="text-xs mt-1 text-zinc-600">
                       {videoSettings.generationMode === 'real'
-                        ? 'Real text-to-video is short and rate-limited on free no-key access.'
+                        ? 'Encoding multiple generated action poses into a short video.'
                         : 'Generating free source image... 10-30 seconds'}
                     </p>
                   </div>
@@ -1314,11 +1499,11 @@ function VideoGenPanel() {
                 <Star className="w-4 h-4 text-amber-400" /> Video Tips
               </h3>
               <div className="space-y-2 text-xs text-zinc-500">
-                <p><strong className="text-violet-300">Real AI Clip</strong> — Use this for prompts like &quot;dog dancing&quot;; it creates actual generated motion.</p>
+                <p><strong className="text-violet-300">Action Sequence</strong> — Use this for prompts like &quot;dog dancing&quot;; it generates several poses and stitches them into a clip.</p>
                 <p><strong className="text-amber-300">Long Motion</strong> — Use this for 45-60s clips, but it animates a still image.</p>
                 <p><strong className="text-emerald-300">Source image model</strong> — Try GPT Image or SeeDream if the first image is not accurate enough.</p>
                 <p><strong className="text-orange-300">Motion effect</strong> — Ken Burns and Drift usually look best for long clips.</p>
-                <p><strong className="text-sky-300">No API keys</strong> — Real AI clips are free/no-key but may fail when the free service is rate-limited.</p>
+                <p><strong className="text-sky-300">No API keys</strong> — True text-to-video currently needs authentication, so no-key mode uses generated keyframes.</p>
                 <p><strong className="text-amber-300">Be descriptive</strong> — Describe motion and camera movement</p>
                 <p><strong className="text-violet-300">Use &quot;Cinematic&quot; style</strong> — For best video results</p>
                 <p><strong className="text-pink-300">For Reels/TikTok</strong> — Select the platform preset first</p>

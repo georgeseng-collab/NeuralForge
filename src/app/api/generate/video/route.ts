@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateFreeRealVideo, generateMotionVideoSource } from '@/lib/ai';
+import { generateMotionVideoSource } from '@/lib/ai';
 
 export const maxDuration = 300; // 5 minutes for video generation
 
@@ -14,6 +14,25 @@ type MotionFallbackOptions = {
   duration: number;
   fps: number;
 };
+
+function buildActionFramePrompts(prompt: string, actionStyle: string): string[] {
+  const cleanPrompt = prompt.trim();
+  const styleHints: Record<string, string> = {
+    'wan-fast': 'dance/action choreography, playful body movement',
+    'ltx-2': 'fast energetic movement, dynamic action poses',
+    'seedance-pro': 'cinematic movement progression, expressive motion',
+    'p-video': 'playful animated movement, lively expressive poses',
+  };
+  const styleHint = styleHints[actionStyle] || styleHints['wan-fast'];
+  return [
+    `${cleanPrompt}, ${styleHint}, action sequence frame 1, starting pose, full body visible, centered subject`,
+    `${cleanPrompt}, ${styleHint}, action sequence frame 2, first movement, different pose, full body visible, centered subject`,
+    `${cleanPrompt}, ${styleHint}, action sequence frame 3, energetic motion, different pose, full body visible, centered subject`,
+    `${cleanPrompt}, ${styleHint}, action sequence frame 4, peak action pose, different pose, full body visible, centered subject`,
+    `${cleanPrompt}, ${styleHint}, action sequence frame 5, follow through motion, different pose, full body visible, centered subject`,
+    `${cleanPrompt}, ${styleHint}, action sequence frame 6, ending pose, different pose, full body visible, centered subject`,
+  ];
+}
 
 async function createFreeMotionResponse(options: MotionFallbackOptions) {
   const motionResult = await generateMotionVideoSource(
@@ -66,29 +85,45 @@ export async function POST(request: NextRequest) {
     }
 
     if (generationMode === 'real') {
-      const result = await generateFreeRealVideo(
-        prompt,
-        style,
-        width,
-        height,
-        realVideoModelId,
-        duration,
-        undefined,
-        negativePrompt,
+      const framePrompts = buildActionFramePrompts(prompt, realVideoModelId);
+      const frameResults = await Promise.allSettled(
+        framePrompts.map((framePrompt) =>
+          generateMotionVideoSource(
+            framePrompt,
+            style,
+            width,
+            height,
+            modelId,
+            negativePrompt,
+          )
+        )
       );
+      const frames = frameResults
+        .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof generateMotionVideoSource>>> => result.status === 'fulfilled')
+        .map((result) => result.value);
+
+      if (frames.length < 2) {
+        throw new Error('Could not generate enough action frames. Try again with a simpler prompt.');
+      }
 
       return NextResponse.json({
-        video_base64: result.videoBase64,
-        video_mime: result.mime,
-        is_real_generation: true,
-        mode: 'real',
-        provider: result.provider,
-        model_used: result.modelUsed,
-        duration: result.duration,
-        width: result.width,
-        height: result.height,
+        image_frames: frames.map((frame, index) => ({
+          image_base64: frame.imageBase64,
+          model_used: frame.modelUsed,
+          width: frame.width,
+          height: frame.height,
+          frame: index + 1,
+        })),
+        is_real_generation: false,
+        mode: 'sequence',
+        provider: 'pollinations-action-sequence',
+        model_used: frames.map((frame) => frame.modelUsed).join(', '),
+        width: frames[0]?.width || width,
+        height: frames[0]?.height || height,
+        duration: Math.min(Math.max(duration, 3), 8),
+        fps,
         prompt,
-        note: 'Free no-key real AI video clip. Free availability is rate-limited and clips are short.',
+        note: 'No-key action sequence: multiple AI keyframes are encoded in the browser. True text-to-video currently requires an authenticated provider.',
       });
     }
 
