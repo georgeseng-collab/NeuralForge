@@ -1677,6 +1677,23 @@ function GrowthStudioPanel() {
   });
   const [klingStatus, setKlingStatus] = useState<'unknown' | 'configured' | 'missing'>('unknown');
   const [klingLastTasks, setKlingLastTasks] = useState<{ order: number; title: string; taskId?: string }[]>([]);
+  const [systemReadiness, setSystemReadiness] = useState<{
+    supabase?: { configured: boolean; serviceConfigured: boolean };
+    kling?: { configured: boolean };
+    storage?: { recommendedBuckets: string[] };
+  } | null>(null);
+
+  useEffect(() => {
+    const checkReadiness = async () => {
+      try {
+        const res = await fetch('/api/system/readiness');
+        if (!res.ok) return;
+        const data = await res.json();
+        setSystemReadiness(data);
+      } catch {}
+    };
+    checkReadiness();
+  }, []);
 
   const primaryOrderLink = socialLinks.find((link) => ['shopee', 'lazada', 'tiktokShop', 'website', 'whatsapp'].includes(link.platform) && link.url)?.url || '';
   const connectedPublishingCount = socialLinks.filter((link) => ['instagram', 'facebook', 'tiktok'].includes(link.platform) && link.oauthStatus === 'connected').length;
@@ -2082,10 +2099,29 @@ function GrowthStudioPanel() {
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader><CardTitle className="text-sm text-zinc-300">Production Auth Checklist</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-zinc-400">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-zinc-800 p-3">
+                  <p className="text-xs text-zinc-500">Supabase</p>
+                  <p className={systemReadiness?.supabase?.configured ? 'text-emerald-300' : 'text-amber-300'}>
+                    {systemReadiness?.supabase?.configured ? 'Client configured' : 'Needs env vars'}
+                  </p>
+                  <p className={systemReadiness?.supabase?.serviceConfigured ? 'text-emerald-300 text-xs' : 'text-zinc-500 text-xs'}>
+                    {systemReadiness?.supabase?.serviceConfigured ? 'Service role ready' : 'Service role pending'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-zinc-800 p-3">
+                  <p className="text-xs text-zinc-500">Kling</p>
+                  <p className={systemReadiness?.kling?.configured ? 'text-emerald-300' : 'text-amber-300'}>
+                    {systemReadiness?.kling?.configured ? 'Credentials ready' : 'Needs credentials'}
+                  </p>
+                  <p className="text-xs text-zinc-500">Server-side only</p>
+                </div>
+              </div>
               <p><strong className="text-emerald-300">1. User auth:</strong> Add Supabase Auth or Auth.js for real accounts.</p>
               <p><strong className="text-cyan-300">2. Database:</strong> Move workspace, products, drafts, leads and schedules from local state to Postgres.</p>
               <p><strong className="text-violet-300">3. Social OAuth:</strong> Store Meta/TikTok tokens server-side only after user authorization.</p>
               <p><strong className="text-amber-300">4. Scheduler worker:</strong> Use a cron/queue worker to publish scheduled posts reliably.</p>
+              <p><strong className="text-pink-300">5. Storage buckets:</strong> {systemReadiness?.storage?.recommendedBuckets?.join(', ') || 'media-assets, kling-clips, post-thumbnails'}.</p>
               <Separator className="bg-zinc-800" />
               <p className="text-xs text-zinc-500">This panel is a safe frontend foundation; it does not collect social passwords or expose API keys.</p>
             </CardContent>
