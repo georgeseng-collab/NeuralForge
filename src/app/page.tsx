@@ -95,9 +95,15 @@ async function encodeMotionToVideo(
   duration: number,
   fps: number = 24,
   effect: MotionEffect = 'ken-burns',
+  onProgress?: (frame: number, totalFrames: number) => void,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
+      if (typeof MediaRecorder === 'undefined') {
+        reject(new Error('Your browser does not support MediaRecorder video encoding. Try Chrome, Edge, or Firefox.'));
+        return;
+      }
+
       // Cap canvas dimensions to avoid browser memory issues (max 1024 on longest side)
       const maxDim = 1024;
       let cw = width;
@@ -117,6 +123,10 @@ async function encodeMotionToVideo(
       const ctx = canvas.getContext('2d')!;
 
       const stream = canvas.captureStream(fps);
+      if (!stream) {
+        reject(new Error('Your browser could not capture the canvas stream for video encoding.'));
+        return;
+      }
       const chunks: Blob[] = [];
 
       let mimeType = 'video/webm;codecs=vp9';
@@ -138,6 +148,10 @@ async function encodeMotionToVideo(
 
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'video/webm' });
+        if (!blob.size) {
+          reject(new Error('Video encoding produced an empty file. Keep this tab active and try again.'));
+          return;
+        }
         resolve(URL.createObjectURL(blob));
       };
 
@@ -175,9 +189,11 @@ async function encodeMotionToVideo(
 
         const totalFrames = duration * fps;
         let frame = 0;
+        onProgress?.(0, totalFrames);
 
         const renderFrame = () => {
           if (frame >= totalFrames) {
+            onProgress?.(totalFrames, totalFrames);
             recorder.stop();
             return;
           }
@@ -251,6 +267,9 @@ async function encodeMotionToVideo(
 
           ctx.drawImage(img, dx, dy, dw, dh);
           frame++;
+          if (frame === 1 || frame % Math.max(1, Math.floor(fps)) === 0) {
+            onProgress?.(frame, totalFrames);
+          }
 
           // Use setTimeout instead of requestAnimationFrame for more consistent timing
           setTimeout(renderFrame, 1000 / fps);
@@ -706,10 +725,18 @@ function ImageGenPanel() {
 
 // ─── Video Generation Panel ──────────────────────────────────────────────────
 function VideoGenPanel() {
-  const { videoSettings, updateVideoSettings, videoProgress, setVideoProgress, generatedVideo, setGeneratedVideo, generatedVideoUrl, setGeneratedVideoUrl, addGalleryItem, safetySettings, addSafetyLog } = useNeuralForgeStore();
+  const { videoSettings, updateVideoSettings, videoProgress, setVideoProgress, setGeneratedVideo, generatedVideoUrl, setGeneratedVideoUrl, addGalleryItem, safetySettings, addSafetyLog } = useNeuralForgeStore();
   const [isEncoding, setIsEncoding] = useState(false);
+  const [encodingPercent, setEncodingPercent] = useState(0);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [pendingVideoMeta, setPendingVideoMeta] = useState<{
+    prompt: string;
+    negativePrompt?: string;
+    settings: Record<string, unknown>;
+    modelUsed?: string;
+    provider?: string;
+  } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Clean up blob URLs on unmount
@@ -717,7 +744,7 @@ function VideoGenPanel() {
     return () => {
       if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
     };
-  }, []);
+  }, [videoBlobUrl]);
 
   // Auto-start motion encoding when a free motion source image is received.
   // This also handles automatic fallback from paid/credit providers.
@@ -725,7 +752,9 @@ function VideoGenPanel() {
     if (!sourceImage) return;
     let cancelled = false;
     setIsEncoding(true);
-    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: videoSettings.duration * videoSettings.fps, message: `Encoding ${videoSettings.duration}s motion video (${videoSettings.motionEffect})...` });
+    setEncodingPercent(0);
+    const totalFrames = videoSettings.duration * videoSettings.fps;
+    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames, message: `Encoding ${videoSettings.duration}s motion video (${videoSettings.motionEffect})... keep this tab open` });
     encodeMotionToVideo(
       sourceImage,
       videoSettings.width,
@@ -733,18 +762,48 @@ function VideoGenPanel() {
       videoSettings.duration,
       videoSettings.fps,
       videoSettings.motionEffect,
+      (frame, total) => {
+        if (cancelled) return;
+        const percent = total > 0 ? Math.min(99, Math.round((frame / total) * 100)) : 0;
+        setEncodingPercent(percent);
+        setVideoProgress({
+          isGenerating: true,
+          currentFrame: frame,
+          totalFrames: total,
+          message: `Encoding video ${percent}% (${Math.ceil((total - frame) / videoSettings.fps)}s remaining)...`,
+        });
+      },
     ).then((url) => {
       if (!cancelled) {
         if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
         setVideoBlobUrl(url);
         setGeneratedVideoUrl(url);
+        setGeneratedVideo(url);
         setIsEncoding(false);
+        setEncodingPercent(100);
         setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
+        if (pendingVideoMeta) {
+          addGalleryItem({
+            id: crypto.randomUUID(),
+            type: 'video',
+            prompt: pendingVideoMeta.prompt,
+            negativePrompt: pendingVideoMeta.negativePrompt,
+            settings: pendingVideoMeta.settings,
+            url,
+            thumbnailUrl: sourceImage,
+            timestamp: Date.now(),
+            isNsfw: false,
+            modelUsed: pendingVideoMeta.modelUsed,
+            provider: pendingVideoMeta.provider,
+            videoUrl: url,
+          });
+        }
         toast.success('Motion video encoded!');
       }
     }).catch((err) => {
       if (!cancelled) {
         setIsEncoding(false);
+        setEncodingPercent(0);
         setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
         toast.error('Motion encoding failed: ' + err.message);
       }
@@ -792,6 +851,8 @@ function VideoGenPanel() {
     if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
     setVideoBlobUrl(null);
     setSourceImage(null);
+    setPendingVideoMeta(null);
+    setEncodingPercent(0);
     setGeneratedVideoUrl(null);
     setGeneratedVideo(null);
 
@@ -822,20 +883,14 @@ function VideoGenPanel() {
         // Motion mode/fallback: we get an image_base64, set as sourceImage which triggers encoding
         // Backend already includes data:image/...;base64, prefix from fetchImageAsBase64
         const imageUrl = data.image_base64 || data.image_url;
-        setSourceImage(imageUrl);
-        setGeneratedVideo(imageUrl);
-        addGalleryItem({
-          id: crypto.randomUUID(),
-          type: 'video',
+        setPendingVideoMeta({
           prompt: videoSettings.prompt,
+          negativePrompt: videoSettings.negativePrompt,
           settings: { ...videoSettings },
-          url: imageUrl,
-          thumbnailUrl: imageUrl,
-          timestamp: Date.now(),
-          isNsfw: data.is_nsfw || false,
           modelUsed: data.model_used,
           provider: data.provider,
         });
+        setSourceImage(imageUrl);
         toast.success(`Image generated! Encoding ${data.duration || videoSettings.duration}s free motion video...`);
       } else {
         // Real AI video mode: we get a video_base64
@@ -880,7 +935,6 @@ function VideoGenPanel() {
     }
   }, [videoSettings, safetySettings, setVideoProgress, setGeneratedVideo, setGeneratedVideoUrl, addGalleryItem, addSafetyLog, videoBlobUrl]);
 
-  const hasVideo = !!(videoBlobUrl || generatedVideoUrl || generatedVideo);
   const currentVideoUrl = videoBlobUrl || generatedVideoUrl;
   const maxSelectableDuration = 60;
   const selectableDurations = DURATION_OPTIONS.filter((duration) => duration <= maxSelectableDuration);
@@ -1075,7 +1129,7 @@ function VideoGenPanel() {
 
               {(videoProgress.isGenerating || isEncoding) && (
                 <div className="space-y-2">
-                  <Progress value={isEncoding ? 75 : 50} className="h-2 animate-pulse" />
+                  <Progress value={isEncoding ? encodingPercent : 50} className="h-2 animate-pulse" />
                   <p className="text-xs text-zinc-500 text-center">
                     {isEncoding ? `Encoding ${videoSettings.duration}s motion video in your browser...` : 'Generating free source image... 10-30 seconds'}
                   </p>
@@ -1107,8 +1161,28 @@ function VideoGenPanel() {
                     playsInline
                     className="w-full h-full object-contain rounded-lg"
                   />
+                ) : isEncoding ? (
+                  <div className="relative w-full h-full flex items-center justify-center bg-zinc-950">
+                    {sourceImage && (
+                      <img src={sourceImage} alt="Source preview" className="absolute inset-0 w-full h-full object-cover opacity-25 blur-sm" />
+                    )}
+                    <div className="relative z-10 text-center text-zinc-300 p-6 max-w-sm">
+                      <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin text-amber-400" />
+                      <p className="text-sm font-medium">Encoding video, not just generating an image</p>
+                      <p className="text-xs mt-1 text-zinc-500">
+                        This free browser encoder records in real time, so a {videoSettings.duration}s video takes about {videoSettings.duration}s after the image is ready.
+                      </p>
+                      <Progress value={encodingPercent} className="h-2 mt-4" />
+                      <p className="text-xs mt-2 text-amber-300">{encodingPercent}% complete - keep this tab open</p>
+                    </div>
+                  </div>
                 ) : sourceImage ? (
-                  <img src={sourceImage} alt="Source" className="w-full h-full object-contain" />
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <img src={sourceImage} alt="Source" className="w-full h-full object-contain" />
+                    <div className="absolute bottom-3 left-3 right-3 rounded-lg bg-zinc-950/85 border border-amber-500/30 p-3 text-xs text-amber-200">
+                      Source image is ready. If video did not start, use Chrome/Edge/Firefox and keep the tab active while encoding.
+                    </div>
+                  </div>
                 ) : videoProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
