@@ -18,5 +18,9 @@ export async function GET() {
     storage: {
       recommendedBuckets: ['media-assets', 'kling-clips', 'post-thumbnails'],
     },
+    scheduler: {
+      configured: Boolean(process.env.SCHEDULER_SECRET),
+      requiredEnv: ['SCHEDULER_SECRET'],
+    },
   });
 }

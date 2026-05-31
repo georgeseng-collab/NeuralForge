@@ -1681,6 +1681,7 @@ function GrowthStudioPanel() {
     supabase?: { configured: boolean; serviceConfigured: boolean };
     kling?: { configured: boolean };
     storage?: { recommendedBuckets: string[] };
+    scheduler?: { configured: boolean };
   } | null>(null);
 
   useEffect(() => {
@@ -2099,7 +2100,7 @@ function GrowthStudioPanel() {
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader><CardTitle className="text-sm text-zinc-300">Production Auth Checklist</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-zinc-400">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="rounded-lg border border-zinc-800 p-3">
                   <p className="text-xs text-zinc-500">Supabase</p>
                   <p className={systemReadiness?.supabase?.configured ? 'text-emerald-300' : 'text-amber-300'}>
@@ -2115,6 +2116,13 @@ function GrowthStudioPanel() {
                     {systemReadiness?.kling?.configured ? 'Credentials ready' : 'Needs credentials'}
                   </p>
                   <p className="text-xs text-zinc-500">Server-side only</p>
+                </div>
+                <div className="rounded-lg border border-zinc-800 p-3">
+                  <p className="text-xs text-zinc-500">Scheduler</p>
+                  <p className={systemReadiness?.scheduler?.configured ? 'text-emerald-300' : 'text-amber-300'}>
+                    {systemReadiness?.scheduler?.configured ? 'Secret ready' : 'Needs secret'}
+                  </p>
+                  <p className="text-xs text-zinc-500">Vercel Cron protected</p>
                 </div>
               </div>
               <p><strong className="text-emerald-300">1. User auth:</strong> Add Supabase Auth or Auth.js for real accounts.</p>
