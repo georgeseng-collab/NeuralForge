@@ -2448,9 +2448,9 @@ function SettingsPanel() {
             </div>
             <div className="mt-4 p-3 rounded-lg bg-zinc-800/30">
               <p className="text-xs text-zinc-400">
-                NeuralForge uses the free Pollinations.ai API for all AI generation. No API key is required. 
-                All image models generate high-quality results. Video is generated as cinematic keyframes encoded 
-                to WebM on your device for social media use.
+                NeuralForge uses free Pollinations.ai image generation for no-key image and keyframe workflows. 
+                Long Motion and Action Sequence videos are browser encoded to WebM. Paid true-motion providers 
+                should be configured server-side when you are ready for production AI video credits.
               </p>
             </div>
           </CardContent>

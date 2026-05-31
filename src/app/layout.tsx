@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NeuralForge — Offline AI Studio",
-  description: "Generate AI images and videos offline. No API keys required. Powered by open-source models.",
-  keywords: ["NeuralForge", "AI", "image generation", "video generation", "Stable Diffusion", "offline", "open source"],
+  title: "NeuralForge — SG Growth Studio",
+  description: "Create AI images, action-sequence videos, Singapore campaign drafts, leads, and social posting plans.",
+  keywords: ["NeuralForge", "AI", "Singapore marketing", "social scheduler", "image generation", "video generation", "lead generation"],
   authors: [{ name: "NeuralForge" }],
   icons: {
     icon: "/logo.svg",
