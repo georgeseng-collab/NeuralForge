@@ -115,6 +115,23 @@ async function pollKlingTask(taskId: string, endpoint: string = 'text2video') {
   return data;
 }
 
+function extractKlingTaskSummary(task: any) {
+  const data = task?.data || task;
+  const status = data?.task_status || data?.status || data?.taskStatus || 'unknown';
+  const videos = data?.task_result?.videos || data?.taskResult?.videos || data?.videos || [];
+  const firstVideo = Array.isArray(videos) ? videos[0] : videos;
+  const videoUrl = firstVideo?.url || firstVideo?.video_url || data?.video_url || data?.url || '';
+  const coverUrl = firstVideo?.cover_image_url || firstVideo?.thumbnail_url || data?.cover_url || '';
+  const errorMessage = data?.task_status_msg || data?.error || data?.message || '';
+
+  return {
+    status,
+    videoUrl,
+    coverUrl,
+    errorMessage,
+  };
+}
+
 export async function GET(request: NextRequest) {
   const config = getKlingConfig();
   const taskId = request.nextUrl.searchParams.get('taskId');
@@ -135,10 +152,12 @@ export async function GET(request: NextRequest) {
 
     try {
       const task = await pollKlingTask(taskId, endpoint);
+      const summary = extractKlingTaskSummary(task);
       return NextResponse.json({
         provider: 'kling',
         configured: true,
         task,
+        summary,
       });
     } catch (error: any) {
       return NextResponse.json(

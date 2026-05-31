@@ -1676,7 +1676,14 @@ function GrowthStudioPanel() {
     notes: '',
   });
   const [klingStatus, setKlingStatus] = useState<'unknown' | 'configured' | 'missing'>('unknown');
-  const [klingLastTasks, setKlingLastTasks] = useState<{ order: number; title: string; taskId?: string }[]>([]);
+  const [klingLastTasks, setKlingLastTasks] = useState<{
+    order: number;
+    title: string;
+    taskId?: string;
+    status?: string;
+    videoUrl?: string;
+    errorMessage?: string;
+  }[]>([]);
   const [systemReadiness, setSystemReadiness] = useState<{
     supabase?: { configured: boolean; serviceConfigured: boolean };
     kling?: { configured: boolean };
@@ -2013,6 +2020,37 @@ function GrowthStudioPanel() {
       toast.success('Kling scene jobs submitted. Task IDs saved below.');
     } catch (error: any) {
       toast.error(error.message || 'Failed to submit paid Kling jobs');
+    }
+  };
+
+  const pollKlingTaskFromUi = async (taskId?: string) => {
+    if (!taskId) {
+      toast.error('No Kling task ID returned for this scene yet.');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/providers/kling?taskId=${encodeURIComponent(taskId)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.detail || 'Failed to poll Kling task');
+        return;
+      }
+
+      setKlingLastTasks((tasks) =>
+        tasks.map((task) =>
+          task.taskId === taskId
+            ? {
+                ...task,
+                status: data.summary?.status || 'unknown',
+                videoUrl: data.summary?.videoUrl || task.videoUrl,
+                errorMessage: data.summary?.errorMessage || '',
+              }
+            : task
+        )
+      );
+      toast.success(`Kling task status: ${data.summary?.status || 'unknown'}`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to poll Kling task');
     }
   };
 
@@ -2644,9 +2682,23 @@ function GrowthStudioPanel() {
                   <div className="mt-3 rounded-lg bg-zinc-950/60 border border-zinc-800 p-3 space-y-1">
                     <p className="text-xs font-semibold text-zinc-300">Last submitted Kling tasks</p>
                     {klingLastTasks.map((task) => (
-                      <p key={`${task.order}-${task.taskId || task.title}`} className="text-[10px] text-zinc-500">
-                        Scene {task.order} {task.title}: {task.taskId || 'task id pending in provider response'}
-                      </p>
+                      <div key={`${task.order}-${task.taskId || task.title}`} className="rounded border border-zinc-800 p-2">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] text-zinc-400 flex-1">
+                            Scene {task.order} {task.title}: {task.taskId || 'task id pending in provider response'}
+                          </p>
+                          <Button size="sm" variant="outline" className="h-7 border-zinc-700 text-[10px]" onClick={() => pollKlingTaskFromUi(task.taskId)}>
+                            Poll
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 mt-1">Status: {task.status || 'not polled'}</p>
+                        {task.videoUrl && (
+                          <a href={task.videoUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-300 underline">
+                            Open completed clip
+                          </a>
+                        )}
+                        {task.errorMessage && <p className="text-[10px] text-red-300 mt-1">{task.errorMessage}</p>}
+                      </div>
                     ))}
                   </div>
                 )}
