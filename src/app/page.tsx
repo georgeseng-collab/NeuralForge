@@ -5,15 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Film, Image, Database, Shield, Settings, Wifi, WifiOff,
   Cpu, ChevronRight, Zap, Download, Trash2, Search, Play, Pause,
-  RotateCcw, Check, AlertTriangle, Eye, EyeOff, Plus, X, Server,
-  Monitor, HardDrive, RefreshCw, ExternalLink, Copy, Volume2,
+  RotateCcw, Check, AlertTriangle, Plus, X, Server,
+  Monitor, HardDrive, RefreshCw, Copy, Volume2,
   Palette, Layers, Clock, Box, Globe, Cloud, Star, Bolt, Moon,
-  Wand2, Paintbrush, Camera, Video, Share2, Lock, Key
+  Wand2, Paintbrush, Camera, Video, Share2
 } from 'lucide-react';
 import { useNeuralForgeStore } from '@/lib/store';
 import {
   RESOLUTION_OPTIONS, DURATION_OPTIONS, FPS_OPTIONS, STYLE_OPTIONS,
-  IMAGE_MODEL_OPTIONS, VIDEO_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
+  IMAGE_MODEL_OPTIONS, VIDEO_PRESET_OPTIONS,
   MOTION_EFFECT_OPTIONS, MOTION_SOURCE_MODEL_OPTIONS,
   type GalleryItem, type SafetyLogEntry,
 } from '@/lib/types';
@@ -264,7 +264,7 @@ async function encodeMotionToVideo(
           URL.revokeObjectURL(blobUrlToRevoke);
         }
         console.error('[NeuralForge] Image load failed for motion encoding. src type:', imageSrc?.substring(0, 30), 'length:', imageSrc?.length);
-        reject(new Error('Failed to load image for motion encoding. The image data may be corrupted or too large. Try a different source model or use a real AI video mode (Replicate/Fal.ai).'));
+        reject(new Error('Failed to load image for motion encoding. The image data may be corrupted or too large. Try a different free source model.'));
       };
       img.src = imgSrc;
     } catch (err) {
@@ -710,7 +710,6 @@ function VideoGenPanel() {
   const [isEncoding, setIsEncoding] = useState(false);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const [sourceImage, setSourceImage] = useState<string | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Clean up blob URLs on unmount
@@ -789,15 +788,6 @@ function VideoGenPanel() {
       }
     }
 
-    const willUseFreeFallback =
-      (videoSettings.videoMode === 'real' && !videoSettings.pollinationsApiKey.trim()) ||
-      (videoSettings.videoMode === 'fal' && !videoSettings.falApiKey.trim()) ||
-      (videoSettings.videoMode === 'replicate' && !videoSettings.replicateApiKey.trim());
-
-    if (willUseFreeFallback) {
-      toast.info('No provider key found. NeuralForge will use free no-key motion video fallback.');
-    }
-
     // Clean up previous blob URLs
     if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
     setVideoBlobUrl(null);
@@ -805,15 +795,8 @@ function VideoGenPanel() {
     setGeneratedVideoUrl(null);
     setGeneratedVideo(null);
 
-    const isMotion = videoSettings.videoMode === 'motion' || willUseFreeFallback;
-
-    if (isMotion) {
-      const motionModel = MOTION_SOURCE_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId) || MOTION_SOURCE_MODEL_OPTIONS[0];
-      setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating image with ${motionModel.name} for motion video...` });
-    } else {
-      const realModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId) || VIDEO_MODEL_OPTIONS[0];
-      setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating AI video with ${realModel.name}...` });
-    }
+    const motionModel = MOTION_SOURCE_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId) || MOTION_SOURCE_MODEL_OPTIONS[0];
+    setVideoProgress({ isGenerating: true, currentFrame: 0, totalFrames: 1, message: `Generating free image with ${motionModel.name} for motion video...` });
 
     try {
       const res = await fetch('/api/generate/video', {
@@ -821,7 +804,7 @@ function VideoGenPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...videoSettings,
-          videoMode: videoSettings.videoMode,
+          videoMode: 'motion',
           motionEffect: videoSettings.motionEffect,
         }),
       });
@@ -853,9 +836,7 @@ function VideoGenPanel() {
           modelUsed: data.model_used,
           provider: data.provider,
         });
-        toast.success(data.fallback_reason
-          ? `Using free motion fallback. Encoding ${data.duration || videoSettings.duration}s video...`
-          : `Image generated! Encoding motion video (${videoSettings.motionEffect})...`);
+        toast.success(`Image generated! Encoding ${data.duration || videoSettings.duration}s free motion video...`);
       } else {
         // Real AI video mode: we get a video_base64
         if (data.video_base64) {
@@ -895,20 +876,13 @@ function VideoGenPanel() {
     } catch (err: any) {
       toast.error(err.message || 'Video generation failed.');
     } finally {
-      if (isMotion) {
-        // Don't clear progress yet - encoding will happen after
-      } else {
-        setVideoProgress({ isGenerating: false, currentFrame: 0, message: '' });
-      }
+      // Don't clear progress yet - encoding will happen after source image generation.
     }
   }, [videoSettings, safetySettings, setVideoProgress, setGeneratedVideo, setGeneratedVideoUrl, addGalleryItem, addSafetyLog, videoBlobUrl]);
 
   const hasVideo = !!(videoBlobUrl || generatedVideoUrl || generatedVideo);
-  const selectedVideoModel = VIDEO_MODEL_OPTIONS.find(m => m.id === videoSettings.modelId);
   const currentVideoUrl = videoBlobUrl || generatedVideoUrl;
-  const maxSelectableDuration = videoSettings.videoMode === 'motion'
-    ? 60
-    : selectedVideoModel?.maxDuration || 6;
+  const maxSelectableDuration = 60;
   const selectableDurations = DURATION_OPTIONS.filter((duration) => duration <= maxSelectableDuration);
   const selectedDurationValue = selectableDurations.includes(videoSettings.duration as typeof DURATION_OPTIONS[number])
     ? `${videoSettings.duration}`
@@ -924,206 +898,30 @@ function VideoGenPanel() {
           <h2 className="text-2xl font-bold">Video Generation</h2>
           <p className="text-sm text-zinc-500">Create AI videos for Reels, YouTube, TikTok & more</p>
         </div>
-        <Badge className={`ml-auto border-0 ${
-          videoSettings.videoMode === 'replicate' ? 'bg-sky-600/20 text-sky-300' :
-          videoSettings.videoMode === 'fal' ? 'bg-emerald-600/20 text-emerald-300' :
-          videoSettings.videoMode === 'real' ? 'bg-purple-600/20 text-purple-300' :
-          'bg-amber-600/20 text-amber-300'
-        }`}>
-          {videoSettings.videoMode === 'replicate' ? <><Bolt className="w-3 h-3 mr-1" /> Replicate</> :
-            videoSettings.videoMode === 'fal' ? <><Globe className="w-3 h-3 mr-1" /> Fal.ai</> :
-            videoSettings.videoMode === 'real' ? <><Key className="w-3 h-3 mr-1" /> Pollinations</> :
-            <><Camera className="w-3 h-3 mr-1" /> Motion</>
-          }
+        <Badge className="ml-auto border-0 bg-amber-600/20 text-amber-300">
+          <Camera className="w-3 h-3 mr-1" /> Free · No Key
         </Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
-          {/* Video Mode Selector */}
+          {/* Free Video Mode */}
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-4">
               <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
-                <Video className="w-4 h-4 text-amber-400" /> Video Mode
+                <Camera className="w-4 h-4 text-amber-400" /> Free Video Mode
               </Label>
-              <div className="grid grid-cols-4 gap-2">
-                <button
-                  onClick={() => updateVideoSettings({ videoMode: 'motion', modelId: MOTION_SOURCE_MODEL_OPTIONS[0].id, duration: Math.max(videoSettings.duration, 45), fps: videoSettings.fps || 12 })}
-                  className={`text-left p-3 rounded-lg border transition-all duration-150
-                    ${videoSettings.videoMode === 'motion'
-                      ? 'bg-amber-600/20 border-amber-500/50 shadow-lg shadow-amber-500/10'
-                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
-                    }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Camera className="w-4 h-4 text-amber-400" />
-                    <span className="text-sm font-medium text-zinc-200">Free Motion</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500">No key, 45-60s</p>
-                </button>
-                <button
-                  onClick={() => updateVideoSettings({ videoMode: 'replicate', modelId: VIDEO_MODEL_OPTIONS.find(m => m.provider === 'replicate')?.id || 'replicate-luma', duration: 5 })}
-                  className={`text-left p-3 rounded-lg border transition-all duration-150
-                    ${videoSettings.videoMode === 'replicate'
-                      ? 'bg-sky-600/20 border-sky-500/50 shadow-lg shadow-sky-500/10'
-                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
-                    }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Bolt className="w-4 h-4 text-sky-400" />
-                    <span className="text-sm font-medium text-zinc-200">Replicate</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500">Short AI clips, key</p>
-                </button>
-                <button
-                  onClick={() => updateVideoSettings({ videoMode: 'fal', modelId: VIDEO_MODEL_OPTIONS.find(m => m.provider === 'fal')?.id || 'fal-wan', duration: 5 })}
-                  className={`text-left p-3 rounded-lg border transition-all duration-150
-                    ${videoSettings.videoMode === 'fal'
-                      ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
-                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
-                    }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Globe className="w-4 h-4 text-emerald-400" />
-                    <span className="text-sm font-medium text-zinc-200">Fal.ai</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500">Free $10-20 credits</p>
-                </button>
-                <button
-                  onClick={() => updateVideoSettings({ videoMode: 'real', modelId: VIDEO_MODEL_OPTIONS.find(m => m.provider === 'pollinations')?.id || 'ltx-2', duration: 5 })}
-                  className={`text-left p-3 rounded-lg border transition-all duration-150
-                    ${videoSettings.videoMode === 'real'
-                      ? 'bg-purple-600/20 border-purple-500/50 shadow-lg shadow-purple-500/10'
-                      : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
-                    }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Key className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm font-medium text-zinc-200">Pollinations</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500">Try free/key optional</p>
-                </button>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-600/10 p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Camera className="w-4 h-4 text-amber-400" />
+                  <span className="text-sm font-medium text-zinc-200">No API keys required</span>
+                </div>
+                <p className="text-xs text-zinc-400">
+                  NeuralForge creates a free AI source image, then encodes it in your browser as a 45-60 second motion video.
+                </p>
               </div>
             </CardContent>
           </Card>
-
-          {/* API Key Field */}
-          {videoSettings.videoMode === 'replicate' && (
-            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-              <CardContent className="p-4">
-                <Label className="text-zinc-300 mb-2 block text-sm font-semibold flex items-center gap-2">
-                  <Key className="w-4 h-4 text-sky-400" /> Replicate API Key (Optional)
-                </Label>
-                <div className="relative">
-                  <Input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={videoSettings.replicateApiKey}
-                    onChange={(e) => updateVideoSettings({ replicateApiKey: e.target.value })}
-                    placeholder="Enter your Replicate API key..."
-                    className="bg-zinc-800/50 border-zinc-700 pr-10"
-                  />
-                  <button
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                  >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <a
-                  href="https://replicate.com/account/api-tokens"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-sky-400 hover:text-sky-300 mt-2 inline-flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3 h-3" /> Get free key at replicate.com — free credits, no CC needed
-                </a>
-              </CardContent>
-            </Card>
-          )}
-          {videoSettings.videoMode === 'fal' && (
-            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-              <CardContent className="p-4">
-                <Label className="text-zinc-300 mb-2 block text-sm font-semibold flex items-center gap-2">
-                  <Key className="w-4 h-4 text-emerald-400" /> Fal.ai API Key (Optional)
-                </Label>
-                <div className="relative">
-                  <Input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={videoSettings.falApiKey}
-                    onChange={(e) => updateVideoSettings({ falApiKey: e.target.value })}
-                    placeholder="Enter your Fal.ai API key..."
-                    className="bg-zinc-800/50 border-zinc-700 pr-10"
-                  />
-                  <button
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                  >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <a
-                  href="https://fal.ai/dashboard/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-emerald-400 hover:text-emerald-300 mt-2 inline-flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3 h-3" /> Get free key at fal.ai — $10-20 free credits, no CC needed
-                </a>
-              </CardContent>
-            </Card>
-          )}
-          {videoSettings.videoMode === 'real' && (
-            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-              <CardContent className="p-4">
-                <Label className="text-zinc-300 mb-2 block text-sm font-semibold flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-purple-400" /> Pollinations API Key (Optional)
-                </Label>
-                <div className="relative">
-                  <Input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={videoSettings.pollinationsApiKey}
-                    onChange={(e) => updateVideoSettings({ pollinationsApiKey: e.target.value })}
-                    placeholder="Enter your Pollinations API key..."
-                    className="bg-zinc-800/50 border-zinc-700 pr-10"
-                  />
-                  <button
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                  >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <a
-                  href="https://enter.pollinations.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-purple-400 hover:text-purple-300 mt-2 inline-flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3 h-3" /> Get free key at enter.pollinations.ai
-                </a>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Optional API key notices */}
-          {videoSettings.videoMode === 'replicate' && !videoSettings.replicateApiKey.trim() && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-sky-600/10 border border-sky-600/30">
-              <AlertTriangle className="w-4 h-4 text-sky-400 shrink-0" />
-              <p className="text-xs text-sky-300">Replicate key is optional here: without it, NeuralForge falls back to free 45-60s motion video. <a href="https://replicate.com/account/api-tokens" target="_blank" rel="noopener noreferrer" className="underline">Get free credits</a> for short real-AI clips.</p>
-            </div>
-          )}
-          {videoSettings.videoMode === 'fal' && !videoSettings.falApiKey.trim() && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-600/10 border border-emerald-600/30">
-              <AlertTriangle className="w-4 h-4 text-emerald-400 shrink-0" />
-              <p className="text-xs text-emerald-300">Fal.ai key is optional here: without it, NeuralForge falls back to free 45-60s motion video. <a href="https://fal.ai/dashboard/keys" target="_blank" rel="noopener noreferrer" className="underline">Get free credits</a> for short real-AI clips.</p>
-            </div>
-          )}
-          {videoSettings.videoMode === 'real' && !videoSettings.pollinationsApiKey.trim() && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-600/10 border border-amber-600/30">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <p className="text-xs text-amber-300">Pollinations video will be tried without a key, then fallback to free motion if credits/rate limits block it. <a href="https://enter.pollinations.ai" target="_blank" rel="noopener noreferrer" className="underline">Add a key</a> for better reliability.</p>
-            </div>
-          )}
 
           {/* Social Media Preset */}
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
@@ -1153,96 +951,8 @@ function VideoGenPanel() {
             </CardContent>
           </Card>
 
-          {/* Model Selector — different for each mode */}
-          {videoSettings.videoMode === 'replicate' ? (
-            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-              <CardContent className="p-4">
-                <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
-                  <Video className="w-4 h-4 text-sky-400" /> Replicate Video Model
-                </Label>
-                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                  {VIDEO_MODEL_OPTIONS.filter(m => m.provider === 'replicate').map((model) => (
-                    <button
-                      key={model.id}
-                      onClick={() => updateVideoSettings({ modelId: model.id })}
-                      className={`text-left p-2.5 rounded-lg border transition-all duration-150
-                        ${videoSettings.modelId === model.id
-                          ? 'bg-sky-600/20 border-sky-500/50 shadow-lg shadow-sky-500/10'
-                          : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-zinc-200">{model.name}</span>
-                        <Badge className={`text-[9px] px-1.5 py-0 ${BADGE_COLORS[model.badge] || 'bg-zinc-600/30 text-zinc-300'}`}>
-                          {model.badge}
-                        </Badge>
-                      </div>
-                      <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ) : videoSettings.videoMode === 'fal' ? (
-            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-              <CardContent className="p-4">
-                <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
-                  <Video className="w-4 h-4 text-emerald-400" /> Fal.ai Video Model
-                </Label>
-                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                  {VIDEO_MODEL_OPTIONS.filter(m => m.provider === 'fal').map((model) => (
-                    <button
-                      key={model.id}
-                      onClick={() => updateVideoSettings({ modelId: model.id })}
-                      className={`text-left p-2.5 rounded-lg border transition-all duration-150
-                        ${videoSettings.modelId === model.id
-                          ? 'bg-emerald-600/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
-                          : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-zinc-200">{model.name}</span>
-                        <Badge className={`text-[9px] px-1.5 py-0 ${BADGE_COLORS[model.badge] || 'bg-zinc-600/30 text-zinc-300'}`}>
-                          {model.badge}
-                        </Badge>
-                      </div>
-                      <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ) : videoSettings.videoMode === 'real' ? (
-            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
-              <CardContent className="p-4">
-                <Label className="text-zinc-300 mb-3 block text-sm font-semibold flex items-center gap-2">
-                  <Video className="w-4 h-4 text-purple-400" /> AI Video Model
-                </Label>
-                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                  {VIDEO_MODEL_OPTIONS.filter(m => m.provider === 'pollinations').map((model) => (
-                    <button
-                      key={model.id}
-                      onClick={() => updateVideoSettings({ modelId: model.id })}
-                      className={`text-left p-2.5 rounded-lg border transition-all duration-150
-                        ${videoSettings.modelId === model.id
-                          ? 'bg-purple-600/20 border-purple-500/50 shadow-lg shadow-purple-500/10'
-                          : 'bg-zinc-800/30 border-zinc-700/50 hover:border-zinc-600'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-zinc-200">{model.name}</span>
-                        <Badge className={`text-[9px] px-1.5 py-0 ${BADGE_COLORS[model.badge] || 'bg-zinc-600/30 text-zinc-300'}`}>
-                          {model.badge}
-                        </Badge>
-                      </div>
-                      <p className="text-[10px] text-zinc-500 leading-tight">{model.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
+          {/* Free motion settings */}
+          <>
               {/* Motion Source Image Model */}
               <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
                 <CardContent className="p-4">
@@ -1301,7 +1011,7 @@ function VideoGenPanel() {
                 </CardContent>
               </Card>
             </>
-          )}
+          </>
 
           <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur">
             <CardContent className="p-5 space-y-5">
@@ -1317,9 +1027,7 @@ function VideoGenPanel() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-zinc-300">
-                    Duration{videoSettings.videoMode === 'motion' ? ' (free 45-60s)' : ` (max ${maxSelectableDuration}s)`}
-                  </Label>
+                  <Label className="text-zinc-300">Duration (free 45-60s)</Label>
                   <Select value={selectedDurationValue} onValueChange={(v) => {
                     const val = Number(v);
                     updateVideoSettings({ duration: Math.min(val, maxSelectableDuration) });
@@ -1351,38 +1059,18 @@ function VideoGenPanel() {
 
               <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5" />
-                {videoSettings.videoMode === 'motion'
-                  ? `${videoSettings.duration}s motion video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · ${videoSettings.motionEffect}`
-                  : videoSettings.videoMode === 'replicate'
-                    ? `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · Replicate`
-                    : videoSettings.videoMode === 'fal'
-                      ? `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · Fal.ai`
-                      : `AI video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · Pollinations`
-                }
+                {`${videoSettings.duration}s free motion video at ${videoSettings.width}x${videoSettings.height} (${selectedPreset?.aspect || 'Custom'}) · ${videoSettings.motionEffect}`}
               </div>
 
               <Button
                 onClick={handleGenerate}
                 disabled={videoProgress.isGenerating || isEncoding}
-                className={`w-full text-white font-semibold h-12 text-base shadow-lg ${
-                  videoSettings.videoMode === 'replicate'
-                    ? 'bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-sky-500/20'
-                    : videoSettings.videoMode === 'motion'
-                    ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-500/20'
-                    : videoSettings.videoMode === 'fal'
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20'
-                      : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-500/20'
-                }`}
+                className="w-full text-white font-semibold h-12 text-base shadow-lg bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-500/20"
               >
                 {videoProgress.isGenerating || isEncoding ? (
                   <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> {videoProgress.message || 'Encoding...'}</>
                 ) : (
-                  <><Film className="w-5 h-5 mr-2" /> {
-                    videoSettings.videoMode === 'replicate' ? 'Generate AI Video (Replicate or Free Fallback)' :
-                    videoSettings.videoMode === 'fal' ? 'Generate AI Video (Fal.ai)' :
-                    videoSettings.videoMode === 'real' ? 'Generate AI Video' :
-                    'Generate Free 45-60s Motion Video'
-                  }</>
+                  <><Film className="w-5 h-5 mr-2" /> Generate Free 45-60s Motion Video</>
                 )}
               </Button>
 
@@ -1390,7 +1078,7 @@ function VideoGenPanel() {
                 <div className="space-y-2">
                   <Progress value={isEncoding ? 75 : 50} className="h-2 animate-pulse" />
                   <p className="text-xs text-zinc-500 text-center">
-                    {isEncoding ? `Encoding ${videoSettings.duration}s motion video in your browser...` : videoSettings.videoMode === 'motion' ? 'Generating free source image... 10-30 seconds' : videoSettings.videoMode === 'replicate' ? 'Generating AI video or free fallback...' : videoSettings.videoMode === 'fal' ? 'Generating AI video or free fallback...' : 'Trying Pollinations video or free fallback...'}
+                    {isEncoding ? `Encoding ${videoSettings.duration}s motion video in your browser...` : 'Generating free source image... 10-30 seconds'}
                   </p>
                 </div>
               )}
@@ -1403,15 +1091,7 @@ function VideoGenPanel() {
             <CardHeader>
               <CardTitle className="text-zinc-300 text-sm flex items-center gap-2">
                 <Video className="w-4 h-4" /> Video Preview
-                {videoSettings.videoMode === 'motion' ? (
-                  <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">{videoSettings.motionEffect}</Badge>
-                ) : videoSettings.videoMode === 'replicate' ? (
-                  <Badge className="text-[9px] bg-sky-600/20 text-sky-300 border-0 ml-auto">Replicate</Badge>
-                ) : videoSettings.videoMode === 'fal' ? (
-                  <Badge className="text-[9px] bg-emerald-600/20 text-emerald-300 border-0 ml-auto">Fal.ai</Badge>
-                ) : selectedVideoModel ? (
-                  <Badge className="text-[9px] bg-purple-600/20 text-purple-300 border-0 ml-auto">{selectedVideoModel.name}</Badge>
-                ) : null}
+                <Badge className="text-[9px] bg-amber-600/20 text-amber-300 border-0 ml-auto">{videoSettings.motionEffect}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1433,12 +1113,9 @@ function VideoGenPanel() {
                 ) : videoProgress.isGenerating ? (
                   <div className="text-center text-zinc-500 p-4">
                     <RefreshCw className="w-12 h-12 mx-auto mb-3 animate-spin opacity-40" />
-                    <p className="text-sm">{videoProgress.message || 'Generating AI video...'}</p>
+                    <p className="text-sm">{videoProgress.message || 'Generating free motion video...'}</p>
                     <p className="text-xs mt-1 text-zinc-600">
-                      {videoSettings.videoMode === 'motion' ? 'Generating free source image... 10-30 seconds' :
-                       videoSettings.videoMode === 'replicate' ? 'AI video generation or free fallback...' :
-                       videoSettings.videoMode === 'fal' ? 'AI video generation or free fallback...' :
-                       'Trying AI video or free fallback...'}
+                      Generating free source image... 10-30 seconds
                     </p>
                   </div>
                 ) : (
@@ -1484,10 +1161,10 @@ function VideoGenPanel() {
                 <Star className="w-4 h-4 text-amber-400" /> Video Tips
               </h3>
               <div className="space-y-2 text-xs text-zinc-500">
-                <p><strong className="text-amber-300">Free Motion</strong> — No key required; best option for 45-60 second videos</p>
-                <p><strong className="text-sky-300">Replicate</strong> — Free credits for short real-AI clips; falls back to motion without a key</p>
-                <p><strong className="text-emerald-300">Fal.ai</strong> — Free credits for short real-AI clips; falls back to motion without a key</p>
-                <p><strong className="text-orange-300">Pollinations</strong> — Tries video generation, then falls back to free motion if credits/rate limits block it</p>
+                <p><strong className="text-amber-300">No API keys</strong> — The video flow is fully free and no-key.</p>
+                <p><strong className="text-sky-300">45-60 seconds</strong> — Use longer durations for Reels, Shorts, and TikTok drafts.</p>
+                <p><strong className="text-emerald-300">Source image model</strong> — Try GPT Image or SeeDream if the first image is not accurate enough.</p>
+                <p><strong className="text-orange-300">Motion effect</strong> — Ken Burns and Drift usually look best for long clips.</p>
                 <p><strong className="text-amber-300">Be descriptive</strong> — Describe motion and camera movement</p>
                 <p><strong className="text-violet-300">Use &quot;Cinematic&quot; style</strong> — For best video results</p>
                 <p><strong className="text-pink-300">For Reels/TikTok</strong> — Select the platform preset first</p>

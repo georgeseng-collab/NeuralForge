@@ -110,10 +110,6 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
     modelId: 'gptimage',
     socialPreset: 'youtube-video',
     negativePrompt: 'blurry, low quality, distorted, watermark, text',
-    pollinationsApiKey: '',
-    falApiKey: '',
-    replicateApiKey: '',
-    videoMode: 'motion',
     motionEffect: 'ken-burns',
   },
   updateVideoSettings: (settings) =>
