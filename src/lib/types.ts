@@ -25,7 +25,7 @@ export interface VideoSettings {
   modelId: string;
   socialPreset: string;
   negativePrompt: string;
-  pollinationsApiKey: string;
+    pollinationsApiKey: string;
   falApiKey: string;
   replicateApiKey: string;
   videoMode: 'real' | 'fal' | 'replicate' | 'motion'; // real = Pollinations with API key, fal = Fal.ai free credits, replicate = Replicate free credits, motion = Ken Burns effect
@@ -132,7 +132,7 @@ export const RESOLUTION_OPTIONS = [
   { label: '1152 x 864 (Landscape 4:3)', width: 1152, height: 864 },
 ] as const;
 
-export const DURATION_OPTIONS = [2, 3, 5, 8, 10, 15] as const;
+export const DURATION_OPTIONS = [2, 3, 5, 6, 8, 10, 15, 30, 45, 60] as const;
 export const FPS_OPTIONS = [2, 3, 4, 6, 8, 12, 24, 30] as const;
 
 // ─── Social Media Video Presets ────────────────────────────────────────────
@@ -160,28 +160,25 @@ export const MOTION_EFFECT_OPTIONS = [
 
 export const IMAGE_MODEL_OPTIONS = [
   // ─── Popular / Core Models ─────────────────────────────────
-  { id: 'flux', name: 'Flux', description: 'Best all-rounder for any style', speed: 'Fast', badge: 'Popular' },
-  { id: 'flux-realism', name: 'Flux Realism', description: 'Photorealistic portraits & scenes', speed: 'Medium', badge: 'HD' },
-  { id: 'flux-anime', name: 'Flux Anime', description: 'Anime, manga & illustration', speed: 'Fast', badge: 'Anime' },
-  { id: 'flux-3d', name: 'Flux 3D', description: '3D render with realistic lighting', speed: 'Medium', badge: '3D' },
-  { id: 'flux-cablyai', name: 'Flux CablyAI', description: 'Enhanced creative & artistic', speed: 'Fast', badge: 'Creative' },
-  { id: 'flux-pro', name: 'Flux Pro', description: 'Premium quality, best detail', speed: 'Slow', badge: 'Pro' },
-  { id: 'turbo', name: 'Turbo', description: 'Ultra-fast generation', speed: 'Very Fast', badge: 'Speed' },
-  { id: 'any-dark', name: 'AnyDark', description: 'Gothic, noir & dark aesthetics', speed: 'Fast', badge: 'Dark' },
-  // ─── NanoBanana Models ─────────────────────────────────────
-  { id: 'nanobanana-2', name: 'NanoBanana 2', description: 'Fast & fun creative AI', speed: 'Fast', badge: 'Fun' },
-  { id: 'nanobanana-pro', name: 'NanoBanana Pro', description: 'Premium NanoBanana detail', speed: 'Medium', badge: 'Pro' },
-  // ─── GPT Models ────────────────────────────────────────────
+  { id: 'flux', name: 'Flux', description: 'Stable general-purpose image model', speed: 'Fast', badge: 'Popular' },
   { id: 'gptimage', name: 'GPT Image', description: 'Strong prompt understanding', speed: 'Medium', badge: 'Smart' },
   { id: 'gptimage-large', name: 'GPT Image Large', description: 'Maximum detail & resolution', speed: 'Slow', badge: 'HD' },
   { id: 'gpt-image-2', name: 'GPT Image 2', description: 'Next-gen with text rendering', speed: 'Medium', badge: 'Smart' },
-  // ─── Other Models ──────────────────────────────────────────
   { id: 'seedream5', name: 'SeeDream 5', description: 'Vibrant colors & composition', speed: 'Medium', badge: 'Creative' },
+  { id: 'seedream-pro', name: 'SeeDream Pro', description: 'High-detail creative images', speed: 'Medium', badge: 'Pro' },
   { id: 'zimage', name: 'ZImage', description: 'Balanced quality & speed', speed: 'Fast', badge: 'Speed' },
   { id: 'qwen-image', name: 'Qwen Image', description: 'Multilingual prompt support', speed: 'Medium', badge: 'Smart' },
+  { id: 'wan-image', name: 'Wan Image', description: 'Great source frames for motion video', speed: 'Medium', badge: 'HD' },
+  { id: 'wan-image-pro', name: 'Wan Image Pro', description: 'Higher-detail source frames', speed: 'Slow', badge: 'Pro' },
+  { id: 'nova-canvas', name: 'Nova Canvas', description: 'Clean, professional images', speed: 'Medium', badge: 'Pro' },
+  { id: 'kontext', name: 'Kontext', description: 'Context-aware composition', speed: 'Medium', badge: 'Smart' },
+  // ─── NanoBanana Models ─────────────────────────────────────
+  { id: 'nanobanana', name: 'NanoBanana', description: 'Fast creative AI model', speed: 'Fast', badge: 'Fun' },
+  { id: 'nanobanana-2', name: 'NanoBanana 2', description: 'Fast & fun creative AI', speed: 'Fast', badge: 'Fun' },
+  { id: 'nanobanana-pro', name: 'NanoBanana Pro', description: 'Premium NanoBanana detail', speed: 'Medium', badge: 'Pro' },
+  // ─── Other Models ──────────────────────────────────────────
   { id: 'grok-imagine', name: 'Grok Imagine', description: 'Witty & creative outputs', speed: 'Fast', badge: 'Creative' },
   { id: 'grok-imagine-pro', name: 'Grok Imagine Pro', description: 'Enhanced detail & composition', speed: 'Slow', badge: 'Pro' },
-  { id: 'nova-canvas', name: 'Nova Canvas', description: 'Clean, professional images', speed: 'Medium', badge: 'Pro' },
   { id: 'klein', name: 'Klein', description: 'Unique artistic interpretation', speed: 'Fast', badge: 'Creative' },
   { id: 'p-image', name: 'P-Image', description: 'Pollinations native creative', speed: 'Fast', badge: 'Popular' },
 ] as const;
@@ -200,7 +197,7 @@ export const VIDEO_MODEL_OPTIONS = [
   { id: 'fal-luma', name: 'Luma Dream (Fal)', description: 'FREE credits! Luma Dream Machine', speed: 'Medium', badge: 'Free', needsApiKey: true, maxDuration: 5, provider: 'fal' },
   // ─── Pollinations Models (requires API key + credits) ──
   { id: 'ltx-2', name: 'LTX Video 2.3', description: 'Fast AI video, cheapest credits', speed: 'Fast', badge: 'Credit', needsApiKey: true, maxDuration: 5, provider: 'pollinations' },
-  { id: 'nova-reel', name: 'Nova Reel', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 30, provider: 'pollinations' },
+  { id: 'nova-reel', name: 'Nova Reel', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 60, provider: 'pollinations' },
   { id: 'wan-fast', name: 'Wan Fast', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, maxDuration: 5, provider: 'pollinations' },
   { id: 'wan', name: 'Wan 2.6', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, maxDuration: 15, provider: 'pollinations' },
   { id: 'seedance-pro', name: 'Seedance Pro', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'Pro', needsApiKey: true, maxDuration: 10, provider: 'pollinations' },
@@ -212,14 +209,14 @@ export const VIDEO_MODEL_OPTIONS = [
 
 // ─── Image models for Motion Video (free, no API key) ─────────────────────
 export const MOTION_SOURCE_MODEL_OPTIONS = [
-  { id: 'flux-realism', name: 'Flux Realism', description: 'Best for photorealistic video', speed: 'Medium', badge: 'Best' },
-  { id: 'flux', name: 'Flux', description: 'Great all-rounder', speed: 'Fast', badge: 'Popular' },
-  { id: 'flux-anime', name: 'Flux Anime', description: 'Anime-style motion', speed: 'Fast', badge: 'Anime' },
-  { id: 'flux-3d', name: 'Flux 3D', description: '3D rendered video', speed: 'Medium', badge: '3D' },
-  { id: 'flux-pro', name: 'Flux Pro', description: 'Premium detail for video', speed: 'Slow', badge: 'Pro' },
-  { id: 'turbo', name: 'Turbo', description: 'Ultra-fast generation', speed: 'Very Fast', badge: 'Speed' },
-  { id: 'gptimage', name: 'GPT Image', description: 'Best prompt understanding', speed: 'Medium', badge: 'Smart' },
-  { id: 'seedream5', name: 'SeeDream 5', description: 'Vibrant colors', speed: 'Medium', badge: 'Creative' },
+  { id: 'gptimage', name: 'GPT Image', description: 'Best prompt understanding for source frames', speed: 'Medium', badge: 'Best' },
+  { id: 'flux', name: 'Flux', description: 'Stable and fast source frames', speed: 'Fast', badge: 'Popular' },
+  { id: 'seedream5', name: 'SeeDream 5', description: 'Vibrant cinematic source frames', speed: 'Medium', badge: 'Creative' },
+  { id: 'wan-image', name: 'Wan Image', description: 'Designed for video-friendly images', speed: 'Medium', badge: 'HD' },
+  { id: 'wan-image-pro', name: 'Wan Image Pro', description: 'Higher-detail video source frames', speed: 'Slow', badge: 'Pro' },
+  { id: 'qwen-image', name: 'Qwen Image', description: 'Good multilingual prompt following', speed: 'Medium', badge: 'Smart' },
+  { id: 'nova-canvas', name: 'Nova Canvas', description: 'Clean social/video compositions', speed: 'Medium', badge: 'Pro' },
+  { id: 'zimage', name: 'ZImage', description: 'Balanced quality and speed', speed: 'Fast', badge: 'Speed' },
 ] as const;
 
 export const DEFAULT_MODELS: AIModel[] = [
@@ -234,36 +231,6 @@ export const DEFAULT_MODELS: AIModel[] = [
     active: true,
     progress: 100,
     huggingFaceId: 'black-forest-labs/flux-schnell',
-    provider: 'pollinations',
-    free: true,
-    noApiKey: true,
-  },
-  {
-    id: 'flux-realism',
-    name: 'Flux Realism',
-    type: 'image',
-    size: 'Cloud',
-    sizeBytes: 0,
-    description: 'Photorealistic image generation.',
-    downloaded: true,
-    active: false,
-    progress: 100,
-    huggingFaceId: 'black-forest-labs/flux-realism',
-    provider: 'pollinations',
-    free: true,
-    noApiKey: true,
-  },
-  {
-    id: 'nanobanana-2',
-    name: 'NanoBanana 2',
-    type: 'image',
-    size: 'Cloud',
-    sizeBytes: 0,
-    description: 'Fast creative AI model.',
-    downloaded: true,
-    active: false,
-    progress: 100,
-    huggingFaceId: 'nanobanana-2',
     provider: 'pollinations',
     free: true,
     noApiKey: true,
@@ -284,16 +251,46 @@ export const DEFAULT_MODELS: AIModel[] = [
     noApiKey: true,
   },
   {
-    id: 'flux-anime',
-    name: 'Flux Anime',
+    id: 'seedream5',
+    name: 'SeeDream 5',
     type: 'image',
     size: 'Cloud',
     sizeBytes: 0,
-    description: 'Anime and manga style.',
+    description: 'Vibrant creative image generation.',
     downloaded: true,
     active: false,
     progress: 100,
-    huggingFaceId: 'flux-anime',
+    huggingFaceId: 'seedream5',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'nanobanana-2',
+    name: 'NanoBanana 2',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Fast creative AI model.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'nanobanana-2',
+    provider: 'pollinations',
+    free: true,
+    noApiKey: true,
+  },
+  {
+    id: 'qwen-image',
+    name: 'Qwen Image',
+    type: 'image',
+    size: 'Cloud',
+    sizeBytes: 0,
+    description: 'Multilingual prompt support.',
+    downloaded: true,
+    active: false,
+    progress: 100,
+    huggingFaceId: 'qwen-image',
     provider: 'pollinations',
     free: true,
     noApiKey: true,

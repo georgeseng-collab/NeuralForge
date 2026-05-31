@@ -3,6 +3,58 @@ import { generateRealVideo, generateFalVideo, generateReplicateVideo, generateMo
 
 export const maxDuration = 300; // 5 minutes for video generation
 
+type MotionFallbackOptions = {
+  prompt: string;
+  style: string;
+  width: number;
+  height: number;
+  modelId: string;
+  negativePrompt: string;
+  motionEffect: string;
+  duration: number;
+  fps: number;
+  reason?: string;
+  requestedMode?: string;
+};
+
+function normalizeMotionModel(modelId: string): string {
+  const videoModelIds = new Set([
+    'replicate-luma', 'replicate-wan', 'replicate-kling', 'replicate-hailuo',
+    'fal-wan', 'fal-hailuo', 'fal-kling', 'fal-luma',
+    'ltx-2', 'nova-reel', 'wan-fast', 'wan', 'seedance-pro', 'seedance-2.0', 'veo', 'grok-video-pro', 'p-video',
+  ]);
+
+  return videoModelIds.has(modelId) ? 'gptimage' : modelId;
+}
+
+async function createMotionFallbackResponse(options: MotionFallbackOptions) {
+  const motionResult = await generateMotionVideoSource(
+    options.prompt,
+    options.style,
+    options.width,
+    options.height,
+    normalizeMotionModel(options.modelId),
+    options.negativePrompt,
+  );
+
+  return NextResponse.json({
+    image_base64: motionResult.imageBase64,
+    is_real_generation: false,
+    mode: 'motion',
+    provider: motionResult.provider,
+    requested_mode: options.requestedMode,
+    fallback_reason: options.reason,
+    model_used: motionResult.modelUsed,
+    width: motionResult.width,
+    height: motionResult.height,
+    motion_effect: options.motionEffect || 'ken-burns',
+    duration: Math.min(Math.max(options.duration, 2), 60),
+    fps: options.fps,
+    prompt: options.prompt,
+    note: 'Free fallback: a high-quality AI image was generated and the browser will encode it into a motion video.',
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -32,10 +84,11 @@ export async function POST(request: NextRequest) {
     // ─── Mode 1: Replicate Video Generation (free credits for new users) ──
     if (videoMode === 'replicate') {
       if (!replicateApiKey.trim()) {
-        return NextResponse.json({
-          detail: 'Replicate API key required. Sign up at replicate.com for free credits (no credit card needed).',
-          code: 'REPLICATE_KEY_REQUIRED',
-        }, { status: 400 });
+        return createMotionFallbackResponse({
+          prompt, style, width, height, modelId, negativePrompt, motionEffect, duration, fps,
+          requestedMode: 'replicate',
+          reason: 'No Replicate API key was provided, so NeuralForge used the free no-key motion generator.',
+        });
       }
 
       try {
@@ -65,34 +118,22 @@ export async function POST(request: NextRequest) {
       } catch (error: any) {
         console.error('[NeuralForge] Replicate video generation failed:', error.message);
 
-        if (error.message.includes('REPLICATE_INVALID_KEY')) {
-          return NextResponse.json({
-            detail: 'Invalid Replicate API key. Please check your key at replicate.com/account',
-            code: 'REPLICATE_INVALID_KEY',
-          }, { status: 401 });
-        }
-
-        if (error.message.includes('REPLICATE_INSUFFICIENT_CREDITS')) {
-          return NextResponse.json({
-            detail: 'Your Replicate credits are exhausted. Visit replicate.com to check balance or create a new account.',
-            code: 'REPLICATE_INSUFFICIENT_CREDITS',
-          }, { status: 402 });
-        }
-
-        return NextResponse.json({
-          detail: `Replicate video generation failed: ${error.message}. Try a different model or use Motion mode as fallback.`,
-          fallback_mode: 'motion',
-        }, { status: 502 });
+        return createMotionFallbackResponse({
+          prompt, style, width, height, modelId, negativePrompt, motionEffect, duration, fps,
+          requestedMode: 'replicate',
+          reason: `Replicate failed: ${error.message}`,
+        });
       }
     }
 
     // ─── Mode 2: Fal.ai Video Generation (free $10-20 credits) ────────────
     if (videoMode === 'fal') {
       if (!falApiKey.trim()) {
-        return NextResponse.json({
-          detail: 'Fal.ai API key required. Sign up at fal.ai/dashboard for free $10-20 credits (no credit card needed).',
-          code: 'FAL_KEY_REQUIRED',
-        }, { status: 400 });
+        return createMotionFallbackResponse({
+          prompt, style, width, height, modelId, negativePrompt, motionEffect, duration, fps,
+          requestedMode: 'fal',
+          reason: 'No Fal.ai API key was provided, so NeuralForge used the free no-key motion generator.',
+        });
       }
 
       try {
@@ -122,29 +163,16 @@ export async function POST(request: NextRequest) {
       } catch (error: any) {
         console.error('[NeuralForge] Fal.ai video generation failed:', error.message);
 
-        if (error.message.includes('FAL_INVALID_KEY')) {
-          return NextResponse.json({
-            detail: 'Invalid Fal.ai API key. Please check your key at fal.ai/dashboard',
-            code: 'FAL_INVALID_KEY',
-          }, { status: 401 });
-        }
-
-        if (error.message.includes('FAL_INSUFFICIENT_CREDITS')) {
-          return NextResponse.json({
-            detail: 'Your Fal.ai credits are exhausted. Visit fal.ai/dashboard to check balance or create a new account.',
-            code: 'FAL_INSUFFICIENT_CREDITS',
-          }, { status: 402 });
-        }
-
-        return NextResponse.json({
-          detail: `Fal.ai video generation failed: ${error.message}. Try a different model or use Motion mode as fallback.`,
-          fallback_mode: 'motion',
-        }, { status: 502 });
+        return createMotionFallbackResponse({
+          prompt, style, width, height, modelId, negativePrompt, motionEffect, duration, fps,
+          requestedMode: 'fal',
+          reason: `Fal.ai failed: ${error.message}`,
+        });
       }
     }
 
     // ─── Mode 3: Pollinations Video Generation (requires API key + credits) ──
-    if (videoMode === 'real' && pollinationsApiKey) {
+    if (videoMode === 'real') {
       try {
         const result = await generateRealVideo(
           prompt,
@@ -172,55 +200,19 @@ export async function POST(request: NextRequest) {
         });
       } catch (error: any) {
         console.error('[NeuralForge] Pollinations video generation failed:', error.message);
-
-        if (error.message.includes('INSUFFICIENT_CREDITS') || error.message.includes('VIDEO_FALLBACK_IMAGE')) {
-          return NextResponse.json({
-            detail: `Pollinations credits insufficient for video. ${error.message}. Try Replicate mode (free credits at replicate.com) or Fal.ai mode instead.`,
-            suggestion: 'replicate',
-          }, { status: 402 });
-        }
-
-        return NextResponse.json({
-          detail: `Pollinations video generation failed: ${error.message}. Try Replicate or Fal.ai mode, or use Motion mode.`,
-          fallback_mode: 'motion',
-        }, { status: 502 });
+        return createMotionFallbackResponse({
+          prompt, style, width, height, modelId, negativePrompt, motionEffect, duration, fps,
+          requestedMode: 'pollinations',
+          reason: `Pollinations video failed: ${error.message}`,
+        });
       }
-    }
-
-    // If real mode but no API key
-    if (videoMode === 'real' && !pollinationsApiKey) {
-      return NextResponse.json({
-        detail: 'Pollinations API key required for this mode. Enter your key or switch to Replicate/Fal.ai mode (free credits available).',
-        code: 'API_KEY_REQUIRED',
-      }, { status: 400 });
     }
 
     // ─── Mode 4: Motion Video (Free, No API Key) ──────────────────────────
     // Generates a high-quality image that will be animated client-side
-    const motionResult = await generateMotionVideoSource(
-      prompt,
-      style,
-      width,
-      height,
-      modelId === 'ltx-2' || modelId === 'nova-reel' || modelId === 'wan' || modelId === 'wan-fast'
-        ? 'flux-realism'
-        : modelId,
-      negativePrompt,
-    );
-
-    return NextResponse.json({
-      image_base64: motionResult.imageBase64,
-      is_real_generation: false,
-      mode: 'motion',
-      provider: motionResult.provider,
-      model_used: motionResult.modelUsed,
-      width: motionResult.width,
-      height: motionResult.height,
-      motion_effect: motionEffect || 'ken-burns',
-      duration,
-      fps,
-      prompt,
-      note: 'High-quality AI image generated. Client will apply cinematic motion effects and encode to video.',
+    return createMotionFallbackResponse({
+      prompt, style, width, height, modelId, negativePrompt, motionEffect, duration, fps,
+      requestedMode: 'motion',
     });
   } catch (error: any) {
     console.error('Video generation error:', error);

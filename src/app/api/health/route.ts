@@ -12,8 +12,8 @@ export async function GET() {
     gpu_available: !isCloud,
     gpu_name: isCloud ? 'Cloud AI (Free)' : 'Local + Cloud AI',
     models_loaded: isCloud
-      ? ['flux', 'flux-realism', 'flux-anime', 'flux-3d', 'flux-cablyai', 'flux-pro', 'turbo', 'any-dark']
-      : ['flux', 'flux-realism', 'flux-anime', 'flux-3d', 'flux-cablyai', 'flux-pro', 'turbo', 'any-dark', 'sdxl', 'zai-engine'],
+      ? ['flux', 'gptimage', 'seedream5', 'zimage', 'qwen-image', 'nova-canvas']
+      : ['flux', 'gptimage', 'seedream5', 'zimage', 'qwen-image', 'nova-canvas', 'sdxl', 'zai-engine'],
     mode: health.mode,
     providers: health.providers,
     free_tier: true,

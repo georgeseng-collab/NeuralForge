@@ -101,19 +101,19 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
   // Video Generation
   videoSettings: {
     prompt: '',
-    duration: 5,
-    fps: 8,
+    duration: 45,
+    fps: 12,
     width: 1344,
     height: 768,
     imageToVideo: false,
     sourceImage: null,
-    modelId: 'replicate-luma',
+    modelId: 'gptimage',
     socialPreset: 'youtube-video',
     negativePrompt: 'blurry, low quality, distorted, watermark, text',
-    pollinationsApiKey: 'sk_uAX1tczTrjIUjX465ALLzExsVsc6HLgJ',
+    pollinationsApiKey: '',
     falApiKey: '',
     replicateApiKey: '',
-    videoMode: 'replicate',
+    videoMode: 'motion',
     motionEffect: 'ken-burns',
   },
   updateVideoSettings: (settings) =>
@@ -201,7 +201,7 @@ export const useNeuralForgeStore = create<NeuralForgeStore>((set) => ({
     backendVersion: '2.0.0',
     gpuAvailable: true,
     gpuName: 'Cloud AI Engine',
-    modelsLoaded: ['flux', 'flux-realism', 'flux-anime', 'flux-3d', 'turbo', 'any-dark'],
+    modelsLoaded: ['flux', 'gptimage', 'seedream5', 'zimage', 'qwen-image', 'nova-canvas'],
   },
   updateConnectionStatus: (status) =>
     set((state) => ({

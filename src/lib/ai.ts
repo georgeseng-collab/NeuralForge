@@ -19,25 +19,23 @@ export interface FreeAIModel {
 
 export const FREE_AI_MODELS: FreeAIModel[] = [
   // ─── Image Models ─────────────────────────────────────────────
-  { id: 'flux', name: 'Flux', provider: 'pollinations', type: 'image', description: 'Best all-rounder for any style', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'flux-realism', name: 'Flux Realism', provider: 'pollinations', type: 'image', description: 'Photorealistic portraits & scenes', maxResolution: '1024x1024', speed: 'medium', quality: 'ultra', free: true, noApiKey: true },
-  { id: 'flux-anime', name: 'Flux Anime', provider: 'pollinations', type: 'image', description: 'Anime, manga & illustration', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'flux-3d', name: 'Flux 3D', provider: 'pollinations', type: 'image', description: '3D render with realistic lighting', maxResolution: '1024x1024', speed: 'medium', quality: 'high', free: true, noApiKey: true },
-  { id: 'flux-cablyai', name: 'Flux CablyAI', provider: 'pollinations', type: 'image', description: 'Enhanced creative & artistic', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'flux-pro', name: 'Flux Pro', provider: 'pollinations', type: 'image', description: 'Premium quality, best detail', maxResolution: '1024x1024', speed: 'slow', quality: 'ultra', free: true, noApiKey: true },
-  { id: 'turbo', name: 'Turbo', provider: 'pollinations', type: 'image', description: 'Ultra-fast generation', maxResolution: '1024x1024', speed: 'fast', quality: 'standard', free: true, noApiKey: true },
-  { id: 'any-dark', name: 'AnyDark', provider: 'pollinations', type: 'image', description: 'Gothic, noir & dark aesthetics', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'nanobanana-2', name: 'NanoBanana 2', provider: 'pollinations', type: 'image', description: 'Fast & fun creative AI', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
-  { id: 'nanobanana-pro', name: 'NanoBanana Pro', provider: 'pollinations', type: 'image', description: 'Premium NanoBanana detail', maxResolution: '1024x1024', speed: 'medium', quality: 'ultra', free: true, noApiKey: true },
+  { id: 'flux', name: 'Flux', provider: 'pollinations', type: 'image', description: 'Stable general-purpose image model', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
   { id: 'gptimage', name: 'GPT Image', provider: 'pollinations', type: 'image', description: 'Strong prompt understanding', maxResolution: '1024x1024', speed: 'medium', quality: 'high', free: true, noApiKey: true },
   { id: 'gptimage-large', name: 'GPT Image Large', provider: 'pollinations', type: 'image', description: 'Maximum detail & resolution', maxResolution: '1024x1024', speed: 'slow', quality: 'ultra', free: true, noApiKey: true },
   { id: 'gpt-image-2', name: 'GPT Image 2', provider: 'pollinations', type: 'image', description: 'Next-gen with text rendering', maxResolution: '1024x1024', speed: 'medium', quality: 'ultra', free: true, noApiKey: true },
   { id: 'seedream5', name: 'SeeDream 5', provider: 'pollinations', type: 'image', description: 'Vibrant colors & composition', maxResolution: '1024x1024', speed: 'medium', quality: 'high', free: true, noApiKey: true },
+  { id: 'seedream-pro', name: 'SeeDream Pro', provider: 'pollinations', type: 'image', description: 'High-detail creative images', maxResolution: '1024x1024', speed: 'medium', quality: 'ultra', free: true, noApiKey: true },
   { id: 'zimage', name: 'ZImage', provider: 'pollinations', type: 'image', description: 'Balanced quality & speed', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
   { id: 'qwen-image', name: 'Qwen Image', provider: 'pollinations', type: 'image', description: 'Multilingual prompt support', maxResolution: '1024x1024', speed: 'medium', quality: 'high', free: true, noApiKey: true },
+  { id: 'wan-image', name: 'Wan Image', provider: 'pollinations', type: 'image', description: 'Image model suited for video source frames', maxResolution: '1024x1024', speed: 'medium', quality: 'high', free: true, noApiKey: true },
+  { id: 'wan-image-pro', name: 'Wan Image Pro', provider: 'pollinations', type: 'image', description: 'Higher-detail video source frames', maxResolution: '1024x1024', speed: 'slow', quality: 'ultra', free: true, noApiKey: true },
+  { id: 'nova-canvas', name: 'Nova Canvas', provider: 'pollinations', type: 'image', description: 'Clean, professional images', maxResolution: '1024x1024', speed: 'medium', quality: 'high', free: true, noApiKey: true },
+  { id: 'kontext', name: 'Kontext', provider: 'pollinations', type: 'image', description: 'Context-aware composition', maxResolution: '1024x1024', speed: 'medium', quality: 'high', free: true, noApiKey: true },
+  { id: 'nanobanana', name: 'NanoBanana', provider: 'pollinations', type: 'image', description: 'Fast & fun creative AI', maxResolution: '1024x1024', speed: 'fast', quality: 'standard', free: true, noApiKey: true },
+  { id: 'nanobanana-2', name: 'NanoBanana 2', provider: 'pollinations', type: 'image', description: 'Fast & fun creative AI', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
+  { id: 'nanobanana-pro', name: 'NanoBanana Pro', provider: 'pollinations', type: 'image', description: 'Premium NanoBanana detail', maxResolution: '1024x1024', speed: 'medium', quality: 'ultra', free: true, noApiKey: true },
   { id: 'grok-imagine', name: 'Grok Imagine', provider: 'pollinations', type: 'image', description: 'Witty & creative outputs', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
   { id: 'grok-imagine-pro', name: 'Grok Imagine Pro', provider: 'pollinations', type: 'image', description: 'Enhanced detail & composition', maxResolution: '1024x1024', speed: 'slow', quality: 'ultra', free: true, noApiKey: true },
-  { id: 'nova-canvas', name: 'Nova Canvas', provider: 'pollinations', type: 'image', description: 'Clean, professional images', maxResolution: '1024x1024', speed: 'medium', quality: 'high', free: true, noApiKey: true },
   { id: 'klein', name: 'Klein', provider: 'pollinations', type: 'image', description: 'Unique artistic interpretation', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
   { id: 'p-image', name: 'P-Image', provider: 'pollinations', type: 'image', description: 'Pollinations native creative', maxResolution: '1024x1024', speed: 'fast', quality: 'high', free: true, noApiKey: true },
 ];
@@ -46,7 +44,7 @@ export const FREE_AI_MODELS: FreeAIModel[] = [
 export interface VideoModelDef {
   id: string;
   name: string;
-  provider: 'pollinations' | 'fal';
+  provider: 'pollinations' | 'fal' | 'replicate';
   description: string;
   speed: string;
   badge: string;
@@ -60,7 +58,7 @@ export interface VideoModelDef {
 export const VIDEO_MODELS: VideoModelDef[] = [
   // ─── Pollinations Video Models ─────────────────────────────
   { id: 'ltx-2', name: 'LTX Video 2.3', provider: 'pollinations', description: 'Fast AI video, cheapest credits', speed: 'Fast', badge: 'Credit', needsApiKey: true, free: false, maxDuration: 5, qualities: ['480p'] },
-  { id: 'nova-reel', name: 'Nova Reel', provider: 'pollinations', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 30, qualities: ['720p'] },
+  { id: 'nova-reel', name: 'Nova Reel', provider: 'pollinations', description: '6-120s professional video, 720p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 60, qualities: ['720p'] },
   { id: 'wan-fast', name: 'Wan Fast', provider: 'pollinations', description: 'Quick 5s video generation', speed: 'Fast', badge: 'Speed', needsApiKey: true, free: false, maxDuration: 5, qualities: ['480p'] },
   { id: 'wan', name: 'Wan 2.6', provider: 'pollinations', description: 'High quality with audio, up to 1080p', speed: 'Medium', badge: 'HD', needsApiKey: true, free: false, maxDuration: 15, qualities: ['480p', '720p', '1080p'] },
   { id: 'seedance-pro', name: 'Seedance Pro', provider: 'pollinations', description: 'Better prompt adherence, 720p', speed: 'Medium', badge: 'Pro', needsApiKey: true, free: false, maxDuration: 10, qualities: ['720p'] },
@@ -122,6 +120,7 @@ function buildPollinationsUrl(
   width: number,
   height: number,
   seed?: number,
+  negativePrompt: string = '',
   nologo: boolean = true,
 ): string {
   const encodedPrompt = encodeURIComponent(prompt);
@@ -129,10 +128,41 @@ function buildPollinationsUrl(
   params.set('width', String(width));
   params.set('height', String(height));
   params.set('model', model);
+  params.set('enhance', 'true');
+  params.set('quality', 'high');
+  params.set('private', 'true');
+  params.set('safe', 'true');
+  if (negativePrompt.trim()) {
+    params.set('negativePrompt', negativePrompt.trim());
+    params.set('negative_prompt', negativePrompt.trim());
+  }
   if (nologo) params.set('nologo', 'true');
   if (seed !== undefined && seed !== null) params.set('seed', String(seed));
   params.set('t', String(Date.now()));
   return `https://image.pollinations.ai/prompt/${encodedPrompt}?${params.toString()}`;
+}
+
+function resolveImageModel(modelId: string, style: string): string {
+  if (FREE_AI_MODELS.some(model => model.id === modelId)) return modelId;
+
+  const styleDefaults: Record<string, string> = {
+    Photorealistic: 'gptimage',
+    Cinematic: 'gptimage',
+    Anime: 'qwen-image',
+    'Digital Art': 'seedream5',
+    'Oil Painting': 'seedream5',
+    Watercolor: 'seedream5',
+    Sketch: 'flux',
+    Cyberpunk: 'gptimage',
+    Fantasy: 'seedream5',
+    '3D Render': 'wan-image',
+    'Pixel Art': 'flux',
+    Minimalist: 'nova-canvas',
+    Surreal: 'seedream5',
+    'Social Media': 'nova-canvas',
+  };
+
+  return styleDefaults[style] || 'flux';
 }
 
 // ─── Pollinations.ai Video API URL Builder ──────────────────────────────────
@@ -257,17 +287,19 @@ async function fetchImageAsBase64(url: string, timeout = 90000): Promise<string>
 // ─── Fetch video from Pollinations API ──────────────────────────────────
 async function fetchVideoFromPollinations(
   url: string,
-  apiKey: string,
+  apiKey: string = '',
   timeout = 300000,
 ): Promise<{ videoBase64: string; mime: string }> {
   console.log(`[NeuralForge] Fetching video from Pollinations: ${url}`);
 
+  const headers: Record<string, string> = {
+    'Accept': 'video/mp4,*/*',
+  };
+  if (apiKey.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`;
+
   const response = await fetch(url, {
     signal: AbortSignal.timeout(timeout),
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Accept': 'video/mp4,*/*',
-    },
+    headers,
   });
 
   // Check if we got an error
@@ -432,17 +464,17 @@ function buildEnhancedPrompt(
   negativePrompt: string = '',
   isVideo: boolean = false,
 ): string {
+  const cleanPrompt = prompt.trim().replace(/\s+/g, ' ');
   const stylePrefix = STYLE_MAP[style] || STYLE_MAP['Photorealistic'];
-  const negatives = negativePrompt ? `${DEFAULT_NEGATIVES}, ${negativePrompt}` : DEFAULT_NEGATIVES;
 
-  let enhanced = `${prompt}, ${stylePrefix}`;
+  let enhanced = `${cleanPrompt}, ${stylePrefix}`;
 
   if (isVideo) {
-    enhanced += ', cinematic motion, smooth camera movement, dynamic scene, fluid animation, realistic motion, natural movement';
+    enhanced += ', cinematic motion, smooth camera movement, dynamic scene, fluid animation, realistic motion, natural movement, coherent subject throughout the shot';
   }
 
   // Add positive guidance
-  enhanced += ', well-composed, sharp, high quality, detailed';
+  enhanced += ', faithful to the prompt, clear main subject, well-composed, sharp, high quality, detailed';
 
   return enhanced;
 }
@@ -466,21 +498,23 @@ export async function generateImage(
   try {
     switch (provider) {
       case 'pollinations': {
-        const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, modelId, width, height, seed || undefined);
+        const resolvedModelId = resolveImageModel(modelId, style);
+        const negative = negativePrompt ? `${DEFAULT_NEGATIVES}, ${negativePrompt}` : DEFAULT_NEGATIVES;
+        const pollinationsUrl = buildPollinationsUrl(enhancedPrompt, resolvedModelId, width, height, seed || undefined, negative);
 
         try {
           const base64Image = await fetchImageAsBase64(pollinationsUrl, 55000);
-          return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: modelId };
+          return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: resolvedModelId };
         } catch (fetchErr: any) {
-          console.log(`[NeuralForge] Base64 fetch failed for ${modelId}: ${fetchErr.message}. Trying flux fallback...`);
+          console.log(`[NeuralForge] Base64 fetch failed for ${resolvedModelId}: ${fetchErr.message}. Trying flux fallback...`);
 
           try {
-            const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined);
+            const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', width, height, seed || undefined, negative);
             const base64Image = await fetchImageAsBase64(fallbackUrl, 30000);
             return { imageUrl: base64Image, isReal: true, provider: 'pollinations', modelUsed: 'flux' };
           } catch {
             console.log('[NeuralForge] Returning direct URL for browser-side loading');
-            return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: modelId };
+            return { imageUrl: pollinationsUrl, isReal: true, provider: 'pollinations', modelUsed: resolvedModelId };
           }
         }
       }
@@ -668,8 +702,10 @@ export async function generateMotionVideoSource(
 
   const enhancedPrompt = buildEnhancedPrompt(prompt, style, negativePrompt, true);
   const seed = seed_base(prompt);
+  const resolvedModelId = resolveImageModel(modelId, style);
+  const negative = negativePrompt ? `${DEFAULT_NEGATIVES}, ${negativePrompt}` : DEFAULT_NEGATIVES;
 
-  const url = buildPollinationsUrl(enhancedPrompt, modelId, w, h, seed);
+  const url = buildPollinationsUrl(enhancedPrompt, resolvedModelId, w, h, seed, negative);
 
   try {
     const imageBase64 = await fetchImageAsBase64(url, 60000);
@@ -677,15 +713,15 @@ export async function generateMotionVideoSource(
       imageBase64,
       isReal: true,
       provider: 'pollinations-motion',
-      modelUsed: modelId,
+      modelUsed: resolvedModelId,
       width: w,
       height: h,
       mode: 'motion',
     };
   } catch (fetchErr: any) {
-    console.log(`[NeuralForge] Image fetch failed for ${modelId}: ${fetchErr.message}. Trying flux fallback...`);
+    console.log(`[NeuralForge] Image fetch failed for ${resolvedModelId}: ${fetchErr.message}. Trying flux fallback...`);
     try {
-      const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', w, h, seed);
+      const fallbackUrl = buildPollinationsUrl(enhancedPrompt, 'flux', w, h, seed, negative);
       const imageBase64 = await fetchImageAsBase64(fallbackUrl, 30000);
       return {
         imageBase64,
